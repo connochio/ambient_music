@@ -6,6 +6,6 @@ CONF_PLAYLISTS = "playlists"
 DEVICE_INFO = {
     "identifiers": {(DOMAIN,)},
     "name": "Ambient Music",
-    "manufacturer": "Custom Integration",
-    "model": "v1"
+    "manufacturer": "Connochio",
+    "model": "Ambient Music Helpers"
 }
