@@ -5,9 +5,9 @@ from homeassistant.helpers.typing import ConfigType
 from .const import DOMAIN
 
 PLATFORMS = [
-    "input_number",
+    "number",
     "input_text",
-    "input_select",
+    "select",
     "sensor",
 ]
 
