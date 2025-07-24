@@ -7,4 +7,5 @@
   "codeowners": ["@connochio"],
   "config_flow": true,
   "issue_tracker": "https://github.com/connochio/ambient_music/issues"
+  "iot_class": "local_polling",
 }
