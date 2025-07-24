@@ -5,7 +5,6 @@ from homeassistant.helpers.selector import (
     EntitySelectorConfig,
     TextSelector,
     TextSelectorConfig,
-    TimeSelector
 )
 from .const import (
     DOMAIN,
