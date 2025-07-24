@@ -11,10 +11,6 @@ from .const import (
     DOMAIN,
     CONF_MEDIA_PLAYERS,
     CONF_PLAYLISTS,
-    CONF_DAY_START,
-    CONF_DAY_END,
-    CONF_NIGHT_START,
-    CONF_NIGHT_END
 )
 
 class AmbientMusicConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -33,9 +29,5 @@ class AmbientMusicConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Required(CONF_PLAYLISTS): TextSelector(
                     TextSelectorConfig(multiline=True)
                 ),
-                vol.Required(CONF_DAY_START): TimeSelector(),
-                vol.Required(CONF_DAY_END): TimeSelector(),
-                vol.Required(CONF_NIGHT_START): TimeSelector(),
-                vol.Required(CONF_NIGHT_END): TimeSelector(),
             })
         )
