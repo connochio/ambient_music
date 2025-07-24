@@ -1,0 +1,10 @@
+{
+  "domain": "ambient_music",
+  "name": "Ambient Music",
+  "version": "1.1.0",
+  "documentation": "",
+  "requirements": [],
+  "codeowners": [],
+  "config_flow": true,
+  "iot_class": "local_push"
+}
