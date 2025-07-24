@@ -9,7 +9,6 @@ PLATFORMS = [
     "input_text",
     "input_select",
     "sensor",
-    "binary_sensor",
 ]
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
