@@ -17,7 +17,9 @@ class AmbientMusicConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_user(self, user_input=None):
         if user_input is not None:
-            return self.async_create_entry(title="Ambient Music", data=user_input)
+            playlist_string = user_input.get(CONF_PLAYLISTS, "")
+            playlist_list = [p.strip() for p in playlist_string.split(",") if p.strip()]
+            user_input[CONF_PLAYLISTS] = playlist_list
 
         return self.async_show_form(
             step_id="user",
