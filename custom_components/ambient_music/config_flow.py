@@ -26,7 +26,7 @@ class AmbientMusicConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     EntitySelectorConfig(domain="media_player", multiple=True)
                 ),
                 vol.Required(CONF_PLAYLISTS): TextSelector(
-                    TextSelectorConfig(multiline=True)
+                    TextSelectorConfig(multiline=False, multiple=True)
                 ),
             })
         )
