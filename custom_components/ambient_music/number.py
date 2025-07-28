@@ -24,7 +24,7 @@ class AmbientMusicNumber(NumberEntity):
         self._attr_native_value = min_val
         self._attr_mode = "auto"
     
-    def set_native_value(self, value):
+    async def async_set_native_value(self, value: float) -> None:
         self._attr_native_value = value
         self.async_write_ha_state()
 
