@@ -17,10 +17,6 @@ class AmbientMusicConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_user(self, user_input=None):
         if user_input is not None:
-            playlist_string = user_input.get(CONF_PLAYLISTS, "")
-            playlist_list = [p.strip() for p in playlist_string.split(",") if p.strip()]
-            user_input[CONF_PLAYLISTS] = playlist_list
-
             return self.async_create_entry(title="Ambient Music", data=user_input)
 
         return self.async_show_form(
@@ -30,7 +26,7 @@ class AmbientMusicConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     EntitySelectorConfig(domain="media_player", multiple=True)
                 ),
                 vol.Required(CONF_PLAYLISTS): TextSelector(
-                    TextSelectorConfig(multiline=True)
+                    TextSelectorConfig(multiline=False, multiple=True)
                 ),
             })
         )
