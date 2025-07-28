@@ -8,7 +8,11 @@ from .const import DOMAIN, DEVICE_INFO, CONF_PLAYLISTS
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ):
-    playlists = entry.data.get(CONF_PLAYLISTS, "").splitlines()
+    # CONF_PLAYLISTS is now a list, not a multiline string
+    playlists = entry.data.get(CONF_PLAYLISTS, [])
+    if not isinstance(playlists, list):
+        playlists = [line.strip() for line in playlists.splitlines() if line.strip()]
+    
     entity = AmbientMusicPlaylistSelect(playlists)
     async_add_entities([entity])
 
