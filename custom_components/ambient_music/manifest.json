@@ -1,7 +1,7 @@
 {
   "domain": "ambient_music",
   "name": "Ambient Music",
-  "version": "v1.1.2-dev",
+  "version": "v1.1.2-dev.1",
   "documentation": "https://github.com/connochio/ambient_music#readme",
   "requirements": [],
   "codeowners": ["@connochio"],
