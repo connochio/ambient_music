@@ -7,5 +7,5 @@ DEVICE_INFO = {
     "identifiers": {(DOMAIN,)},
     "name": "Ambient Music",
     "manufacturer": "Hillworks",
-    "model": "Ambient Music"
+    "model": "Ambient Music",
 }
