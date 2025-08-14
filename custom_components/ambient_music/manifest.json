@@ -7,7 +7,6 @@
   "documentation": "https://github.com/connochio/ambient_music#readme",
   "issue_tracker": "https://github.com/connochio/ambient_music/issues",
   "integration_type": "device",
-  "iot_class": "local_polling",
   "requirements": []
   "config_flow": true,
 }
