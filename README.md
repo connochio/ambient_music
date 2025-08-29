@@ -1,4 +1,4 @@
-[![Static Badge](https://img.shields.io/badge/HACS-Custom-41BDF5?style=for-the-badge&logo=homeassistantcommunitystore&logoColor=white)](https://github.com/hacs/integration) 
+[![Static Badge](https://img.shields.io/badge/HACS-Custom-41BDF5?style=for-the-badge&logo=homeassistantcommunitystore&logoColor=white)](https://github.com/hacs/integration)  
 
 # Ambient Music
 
@@ -20,16 +20,19 @@ Install this integration via HACS with the link above.
 
 ## Description
 
-This integration will create user-configurable helpers to set various aspects of the ambient music system, including:  
+This integration allows for users to create playlist selections that will play automatically on supported players via music assistant.  
 
-- The amount of time to fade music in.
-- The amount of time to fade music out.
-- The default volume for player entities.
+When turned on or off, music will fade in and out for a configurable amount of seconds, to a user-selected default volume.  
 
-In addition, it will also create static non-configurable helpers to start or stop automations, such as:  
+Playlists will also fade out and back in from each-other seamlessly when changed.
 
-- A master on/off switch for all ambient music.
-- Binary sensors for each playlist, enabled when a playlist is selected.
+User configurable options include:
+- Default volume
+- Music fade in time
+- Music fade out time
+- Time to wait between swapping playlists
+- Playlist names and spotify IDs
+
 
 <details>
   <summary>Planned future helpers, switches and/or user-configurable settings</summary>
@@ -47,3 +50,6 @@ In addition, it will also create static non-configurable helpers to start or sto
 ## Setup
 
 <i>Coming Soon</i>
+
+## Credits and Thanks
+
