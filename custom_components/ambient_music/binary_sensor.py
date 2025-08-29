@@ -12,11 +12,18 @@ from .const import CONF_PLAYLISTS, DEVICE_INFO
 SELECT_ENTITY_ID = "select.ambient_music_playlists"
 
 def _slugify_playlist(playlist_name: str) -> str:
-    """Return a safe unique_id-friendly version of the playlist name."""
     slug = playlist_name.lower()
     slug = re.sub(r"\s+", "_", slug)
     slug = re.sub(r"[^a-z0-9_]", "", slug)
     return slug
+
+def _get_playlists(entry: ConfigEntry):
+    playlists = entry.options.get(CONF_PLAYLISTS, entry.data.get(CONF_PLAYLISTS, []))
+    if isinstance(playlists, str):
+        playlists = [line.strip() for line in playlists.splitlines() if line.strip()]
+    elif not isinstance(playlists, list):
+        playlists = []
+    return playlists
 
 class PlaylistEnabledSensor(BinarySensorEntity, RestoreEntity):
     def __init__(self, hass: HomeAssistant, playlist_name: str):
@@ -57,9 +64,7 @@ class PlaylistEnabledSensor(BinarySensorEntity, RestoreEntity):
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ):
-    playlists = entry.data.get(CONF_PLAYLISTS, [])
-    if isinstance(playlists, str):
-        playlists = playlists.splitlines()
+    playlists = _get_playlists(entry)
 
     ent_reg = er.async_get(hass)
     valid_slugs = {_slugify_playlist(p) for p in playlists}

@@ -3,16 +3,20 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN, DEVICE_INFO, CONF_PLAYLISTS
+from .const import DEVICE_INFO, CONF_PLAYLISTS
+
+def _get_playlists(entry: ConfigEntry):
+    playlists = entry.options.get(CONF_PLAYLISTS, entry.data.get(CONF_PLAYLISTS, []))
+    if isinstance(playlists, str):
+        playlists = [line.strip() for line in playlists.splitlines() if line.strip()]
+    elif not isinstance(playlists, list):
+        playlists = []
+    return playlists
 
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ):
-    # CONF_PLAYLISTS is now a list, not a multiline string
-    playlists = entry.data.get(CONF_PLAYLISTS, [])
-    if not isinstance(playlists, list):
-        playlists = [line.strip() for line in playlists.splitlines() if line.strip()]
-    
+    playlists = _get_playlists(entry)
     entity = AmbientMusicPlaylistSelect(playlists)
     async_add_entities([entity])
 
