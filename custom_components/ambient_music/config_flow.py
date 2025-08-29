@@ -15,12 +15,9 @@ from .const import (
 
 def _clean_playlists(playlists):
     if isinstance(playlists, str):
-        # Could happen in older entries, split on newlines
         playlists = [line.strip() for line in playlists.splitlines()]
     elif not isinstance(playlists, list):
         playlists = []
-
-    # Strip whitespace, remove blanks
     return [p.strip() for p in playlists if p and p.strip()]
 
 
