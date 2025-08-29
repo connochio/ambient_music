@@ -1,6 +1,6 @@
-[![Static Badge](https://img.shields.io/badge/HACS-Custom-41BDF5?style=for-the-badge&logo=homeassistantcommunitystore&logoColor=white)](https://github.com/hacs/integration)
+[![Static Badge](https://img.shields.io/badge/HACS-Custom-41BDF5?style=for-the-badge&logo=homeassistantcommunitystore&logoColor=white)](https://github.com/hacs/integration)  
 
-<img src="https://github.com/connochio/brands/blob/master/custom_integrations/ambient_music/icon.png" width=100>  
+<br /><img src="https://github.com/connochio/brands/blob/master/custom_integrations/ambient_music/icon.png" width=100>  
 
 # Ambient Music
 
