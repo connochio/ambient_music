@@ -1,4 +1,6 @@
-[![Static Badge](https://img.shields.io/badge/HACS-Custom-41BDF5?style=for-the-badge&logo=homeassistantcommunitystore&logoColor=white)](https://github.com/hacs/integration) 
+[![Static Badge](https://img.shields.io/badge/HACS-Custom-41BDF5?style=for-the-badge&logo=homeassistantcommunitystore&logoColor=white)](https://github.com/hacs/integration)
+
+<img src="https://github.com/connochio/brands/blob/master/custom_integrations/ambient_music/icon.png" width=100>  
 
 # Ambient Music
 
@@ -14,7 +16,7 @@ A Home Assistant integration for playing ambient music on supported players via 
 
 ## Installation
 
-[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=connochio&repository=ambient_music&category=integration)
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=connochio&repository=ambient_music&category=Integration)
 
 Install this integration via HACS with the link above.
 
@@ -47,3 +49,7 @@ In addition, it will also create static non-configurable helpers to start or sto
 ## Setup
 
 <i>Coming Soon</i>
+
+## Credits and Thanks
+
+Icon design and creation by Lauren Peploe: [Website](https://laurenpeploe.co.uk/)
