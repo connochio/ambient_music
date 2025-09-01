@@ -1,13 +1,13 @@
 {
   "domain": "ambient_music",
   "name": "Ambient Music",
-  "version": "v1.1.7-a.0",
   "codeowners": ["@connochio"],
+  "config_flow": true,
   "dependencies": [],
   "documentation": "https://github.com/connochio/ambient_music#readme",
-  "issue_tracker": "https://github.com/connochio/ambient_music/issues",
   "integration_type": "device",
   "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/connochio/ambient_music/issues",
   "requirements": [],
-  "config_flow": true
+  "version": "v1.1.7-a.0"
 }
