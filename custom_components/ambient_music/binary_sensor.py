@@ -17,6 +17,7 @@ from .const import (
 )
 
 SELECT_ENTITY_ID = "select.ambient_music_playlists"
+MASTER_SWITCH_ENTITY_ID = "switch.ambient_music_master_enable"
 
 def _slugify_playlist(playlist_name: str) -> str:
     slug = playlist_name.lower()
@@ -109,13 +110,15 @@ class BlockersClear(BinarySensorEntity):
         if not isinstance(blockers, list):
             blockers = []
         self._blockers = blockers
-
+        
         new_entities: set[str] = set()
         for blk in blockers:
             if blk.get(BLOCKER_TYPE) == "state":
                 ent = blk.get(BLOCKER_ENTITY_ID)
                 if ent:
                     new_entities.add(str(ent))
+
+        new_entities.add(MASTER_SWITCH_ENTITY_ID)
 
         if new_entities != self._listened_entities:
             for u in self._unsubs:
@@ -166,16 +169,19 @@ class BlockersClear(BinarySensorEntity):
             return False
 
     def _evaluate_and_write(self):
-        failing = [r["name"] for r in results if not r["passed"]]
-        self._attr_extra_state_attributes = {
-            "blockers": results,
-            "blocker_count": len(results),
-            "failing_blockers": failing,
-            "all_passed": all_ok,
-        }
-        
         results = []
-        all_ok = True
+
+        ms = self.hass.states.get(MASTER_SWITCH_ENTITY_ID)
+        master_ok = True if ms is None else (ms.state == "on")
+        results.append({
+            "name": "Master Enable",
+            "type": "switch",
+            "invert": False,
+            "passed": master_ok,
+        })
+
+        all_ok = master_ok
+
         for blk in self._blockers:
             passed = self._eval_blocker(blk)
             results.append({
@@ -185,11 +191,13 @@ class BlockersClear(BinarySensorEntity):
                 "passed": passed,
             })
             all_ok = all_ok and passed
-
+    
         self._attr_is_on = all_ok
         self._attr_extra_state_attributes = {
             "blockers": results,
             "blocker_count": len(results),
+            "failing_blockers": [r["name"] for r in results if not r["passed"]],
+            "all_passed": all_ok,
         }
         self.async_write_ha_state()
 
