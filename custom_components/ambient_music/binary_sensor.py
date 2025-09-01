@@ -17,15 +17,11 @@ def _slugify_playlist(playlist_name: str) -> str:
     slug = re.sub(r"[^a-z0-9_]", "", slug)
     return slug
 
-def _get_playlist_names(entry: ConfigEntry):
-    raw = entry.options.get(CONF_PLAYLISTS, entry.data.get(CONF_PLAYLISTS, {}))
-    if isinstance(raw, dict):
-        return list(raw.keys())
-    if isinstance(raw, list):
-        return [s for s in (x.strip() for x in raw) if s]
-    if isinstance(raw, str):
-        return [s for s in (x.strip() for x in raw.splitlines()) if s]
-    return []
+def _get_playlist_names(entry: ConfigEntry) -> list[str]:
+    raw = entry.options.get(CONF_PLAYLISTS, {})
+    if not isinstance(raw, dict):
+        return []
+    return list(raw.keys())
 
 class PlaylistEnabledSensor(BinarySensorEntity, RestoreEntity):
     def __init__(self, hass: HomeAssistant, playlist_name: str):
@@ -37,10 +33,8 @@ class PlaylistEnabledSensor(BinarySensorEntity, RestoreEntity):
 
     async def async_added_to_hass(self):
         await super().async_added_to_hass()
-
         if (last_state := await self.async_get_last_state()):
             self._attr_is_on = last_state.state == "on"
-
         async_track_state_change_event(self.hass, SELECT_ENTITY_ID, self._handle_select_change)
         self._update_state()
 
@@ -67,10 +61,8 @@ async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ):
     playlists = _get_playlist_names(entry)
-
     ent_reg = er.async_get(hass)
     valid_slugs = {_slugify_playlist(p) for p in playlists}
-
     for entity_id, entity_entry in list(ent_reg.entities.items()):
         if (
             entity_entry.domain == "binary_sensor"
