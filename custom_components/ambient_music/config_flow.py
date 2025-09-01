@@ -18,42 +18,30 @@ from .const import (
     CONF_SPOTIFY_ID,
 )
 
-def _clean_name_list(playlists):
-    if isinstance(playlists, str):
-        playlists = [line.strip() for line in playlists.splitlines()]
-    elif not isinstance(playlists, list):
-        playlists = []
-    return [p.strip() for p in playlists if p and p.strip()]
-
-def _normalize_mapping(raw):
-    if isinstance(raw, dict):
-        out = {}
-        for k, v in raw.items():
-            name = str(k).strip()
-            sid = str(v).strip() if v is not None else ""
-            if name:
-                out[name] = sid
-        return out
-    names = _clean_name_list(raw)
-    return {n: "" for n in names}
-
 _SPOTIFY_ID_RE = re.compile(r"^[A-Za-z0-9]{22}$")
+
 
 def _extract_spotify_id(text: str) -> str:
     if not text:
         return ""
-    text = text.strip()
+    text = str(text).strip()
     if _SPOTIFY_ID_RE.fullmatch(text):
         return text
     m = re.search(r"(?:playlist/|playlist:)([A-Za-z0-9]{22})", text)
     return m.group(1) if m else ""
 
+
 def _get_players_and_map(hass: HomeAssistant, entry: config_entries.ConfigEntry):
     opts = entry.options or {}
-    data = entry.data or {}
-    players = opts.get(CONF_MEDIA_PLAYERS, data.get(CONF_MEDIA_PLAYERS, []))
-    playlist_map = _normalize_mapping(opts.get(CONF_PLAYLISTS, data.get(CONF_PLAYLISTS, {})))
+    players = opts.get(CONF_MEDIA_PLAYERS, [])
+    playlist_map = opts.get(CONF_PLAYLISTS, {})
+    if not isinstance(players, list):
+        players = []
+    if not isinstance(playlist_map, dict):
+        playlist_map = {}
+    playlist_map = {str(k): str(v) for k, v in playlist_map.items()}
     return players, playlist_map
+
 
 def _add_schema(default_name: str = "", default_sid: str = "") -> vol.Schema:
     return vol.Schema({
@@ -83,56 +71,27 @@ def _edit_choice_schema(names: list[str]) -> vol.Schema:
         ),
     })
 
+def _readonly_name_and_id_schema(name: str, default_sid: str) -> vol.Schema:
+    return vol.Schema({
+        vol.Required("playlist_name", default=name): SelectSelector(
+            SelectSelectorConfig(
+                options=[name],
+                multiple=False,
+                custom_value=False,
+            )
+        ),
+        vol.Required(CONF_SPOTIFY_ID, default=default_sid): TextSelector(
+            TextSelectorConfig(multiline=False)
+        ),
+    })
+
 class AmbientMusicConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
 
     async def async_step_user(self, user_input=None):
-        if user_input is not None:
-            user_input[CONF_PLAYLISTS] = _clean_name_list(user_input[CONF_PLAYLISTS])
-            return self.async_create_entry(title="Ambient Music", data=user_input)
-
-        return self.async_show_form(
-            step_id="user",
-            data_schema=vol.Schema({
-                vol.Required(CONF_MEDIA_PLAYERS): EntitySelector(
-                    EntitySelectorConfig(domain="media_player", multiple=True)
-                ),
-                vol.Required(CONF_PLAYLISTS): TextSelector(
-                    TextSelectorConfig(multiline=False, multiple=True)
-                ),
-            })
-        )
-
-    async def async_step_reconfigure(self, user_input=None):
-        errors = {}
-        current_entry = self._get_reconfigure_entry()
-        current_data = current_entry.data
-
-        if user_input is not None:
-            user_input[CONF_PLAYLISTS] = _clean_name_list(user_input[CONF_PLAYLISTS])
-            return self.async_update_reload_and_abort(
-                current_entry,
-                data_updates=user_input,
-            )
-
-        return self.async_show_form(
-            step_id="reconfigure",
-            data_schema=vol.Schema({
-                vol.Required(
-                    CONF_MEDIA_PLAYERS,
-                    default=current_data.get(CONF_MEDIA_PLAYERS, [])
-                ): EntitySelector(
-                    EntitySelectorConfig(domain="media_player", multiple=True)
-                ),
-                vol.Required(
-                    CONF_PLAYLISTS,
-                    default=current_data.get(CONF_PLAYLISTS, [])
-                ): TextSelector(
-                    TextSelectorConfig(multiline=False, multiple=True)
-                ),
-            }),
-            errors=errors,
-        )
+        await self.async_set_unique_id(DOMAIN)
+        self._abort_if_unique_id_configured()
+        return self.async_create_entry(title="Ambient Music", data={})
 
     @staticmethod
     def async_get_options_flow(config_entry):
@@ -148,9 +107,9 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
         return self.async_show_menu(
             step_id="init",
             menu_options={
-                "media_players": "Core settings (media players)",
-                "add_playlist": "Add playlist",
-                "manage_playlists": "Manage playlists (edit/remove)",
+                "add_playlist": "Add Playlist",
+                "manage_playlists": "Manage Playlists",
+                "media_players": "Media Players",
             },
         )
 
@@ -187,8 +146,10 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
             errors = {}
             if not name:
                 errors["name"] = "required"
-            elif name in playlist_map:
-                errors["name"] = "already_configured"
+            else:
+                existing_lower = {n.lower() for n in playlist_map}
+                if name.lower() in existing_lower:
+                    errors["name"] = "already_configured"
             if not sid:
                 errors[CONF_SPOTIFY_ID] = "invalid_spotify_id"
 
@@ -216,7 +177,6 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
             return self.async_show_form(
                 step_id="manage_playlists",
                 data_schema=vol.Schema({}),
-                description_placeholders={"msg": "No playlists configured yet."},
                 errors={"base": "no_playlists"},
             )
 
@@ -239,29 +199,21 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
         old_id = playlist_map.get(old_name, "")
 
         if user_input is not None:
-            new_name = str(user_input["name"]).strip()
-            raw = str(user_input[CONF_SPOTIFY_ID]).strip()
+            raw = str(user_input.get(CONF_SPOTIFY_ID, "")).strip()
             sid = _extract_spotify_id(raw)
 
             errors = {}
-            if not new_name:
-                errors["name"] = "required"
-            elif new_name != old_name and new_name in playlist_map:
-                errors["name"] = "already_configured"
             if not sid:
                 errors[CONF_SPOTIFY_ID] = "invalid_spotify_id"
 
             if errors:
                 return self.async_show_form(
                     step_id="edit_playlist",
-                    data_schema=_add_schema(default_name=new_name or old_name, default_sid=raw),
+                    data_schema=_readonly_name_and_id_schema(old_name, raw),
                     errors=errors,
                 )
 
-            if new_name != old_name:
-                playlist_map.pop(old_name, None)
-            playlist_map[new_name] = sid
-
+            playlist_map[old_name] = sid
             options = {
                 CONF_MEDIA_PLAYERS: players,
                 CONF_PLAYLISTS: playlist_map,
@@ -270,7 +222,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
 
         return self.async_show_form(
             step_id="edit_playlist",
-            data_schema=_add_schema(default_name=old_name, default_sid=old_id),
+            data_schema=_readonly_name_and_id_schema(old_name, old_id),
         )
 
     async def async_step_remove_playlists(self, user_input=None):
