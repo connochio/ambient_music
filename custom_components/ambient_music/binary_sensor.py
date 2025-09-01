@@ -31,10 +31,6 @@ def _get_playlist_names(entry: ConfigEntry) -> list[str]:
         return []
     return list(raw.keys())
 
-def _get_blockers(entry: ConfigEntry) -> list[dict]:
-    ls = entry.options.get(CONF_BLOCKERS, [])
-    return ls if isinstance(ls, list) else []
-
 def _to_bool(val) -> bool:
     if isinstance(val, bool):
         return val
@@ -42,6 +38,7 @@ def _to_bool(val) -> bool:
     return s in ("1", "true", "on", "yes", "y", "enabled")
 
 class PlaylistEnabledSensor(BinarySensorEntity, RestoreEntity):
+
     def __init__(self, hass: HomeAssistant, playlist_name: str):
         self.hass = hass
         self._playlist_name = playlist_name
@@ -76,7 +73,7 @@ class PlaylistEnabledSensor(BinarySensorEntity, RestoreEntity):
         return DEVICE_INFO
 
 class BlockersClear(BinarySensorEntity, RestoreEntity):
-
+    
     _attr_name = "Ambient Music Blockers Clear"
     _attr_unique_id = "ambient_music_blockers_clear"
 
@@ -100,7 +97,7 @@ class BlockersClear(BinarySensorEntity, RestoreEntity):
             self._attr_is_on = last.state == "on"
             if last.attributes:
                 self._attr_extra_state_attributes = dict(last.attributes)
-        self.async_write_ha_state()
+            self.async_write_ha_state()
 
         await self._refresh_blockers_and_listeners()
         self._evaluate_and_write()
@@ -117,14 +114,13 @@ class BlockersClear(BinarySensorEntity, RestoreEntity):
         if not isinstance(blockers, list):
             blockers = []
         self._blockers = blockers
-        
+
         new_entities: set[str] = set()
         for blk in blockers:
             if blk.get(BLOCKER_TYPE) == "state":
                 ent = blk.get(BLOCKER_ENTITY_ID)
                 if ent:
                     new_entities.add(str(ent))
-
         new_entities.add(MASTER_SWITCH_ENTITY_ID)
 
         if new_entities != self._listened_entities:
@@ -163,15 +159,17 @@ class BlockersClear(BinarySensorEntity, RestoreEntity):
                 ent = blk.get(BLOCKER_ENTITY_ID)
                 target = blk.get(BLOCKER_STATE, "")
                 st = self.hass.states.get(ent)
-                ok = (st is not None) and (str(st.state) == str(target))
+                cond_ok = (st is not None) and (str(st.state) == str(target))
             else:
                 tpl_text = blk.get(BLOCKER_TEMPLATE, "")
                 tpl = Template(tpl_text, self.hass)
                 res = tpl.async_render(variables={})
-                ok = str(res).strip().lower() in ("1", "true", "on", "yes", "y", "enabled")
-            if bool(blk.get(BLOCKER_INVERT, False)):
-                ok = not ok
-            return ok
+                cond_ok = _to_bool(res)
+                
+            invert = bool(blk.get(BLOCKER_INVERT, False))
+            passed = cond_ok if invert else not cond_ok
+    
+            return passed
         except Exception:
             return False
 
@@ -198,15 +196,18 @@ class BlockersClear(BinarySensorEntity, RestoreEntity):
                 "passed": passed,
             })
             all_ok = all_ok and passed
-    
-        self._attr_is_on = all_ok
-        self._attr_extra_state_attributes = {
+
+        attrs = {
             "blockers": results,
             "blocker_count": len(results),
             "failing_blockers": [r["name"] for r in results if not r["passed"]],
             "all_passed": all_ok,
         }
+
+        self._attr_is_on = all_ok
+        self._attr_extra_state_attributes = attrs
         self.async_write_ha_state()
+
 
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
@@ -230,3 +231,4 @@ async def async_setup_entry(
     sensors.append(BlockersClear(hass, entry))
 
     async_add_entities(sensors, True)
+
