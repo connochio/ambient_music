@@ -1,4 +1,5 @@
 import re
+import uuid
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
@@ -9,6 +10,8 @@ from homeassistant.helpers.selector import (
     TextSelectorConfig,
     SelectSelector,
     SelectSelectorConfig,
+    BooleanSelector,
+    BooleanSelectorConfig,
 )
 
 from .const import (
@@ -16,10 +19,17 @@ from .const import (
     CONF_MEDIA_PLAYERS,
     CONF_PLAYLISTS,
     CONF_SPOTIFY_ID,
+    CONF_BLOCKERS,
+    BLOCKER_ID,
+    BLOCKER_NAME,
+    BLOCKER_TYPE,
+    BLOCKER_INVERT,
+    BLOCKER_ENTITY_ID,
+    BLOCKER_STATE,
+    BLOCKER_TEMPLATE,
 )
 
 _SPOTIFY_ID_RE = re.compile(r"^[A-Za-z0-9]{22}$")
-
 
 def _extract_spotify_id(text: str) -> str:
     if not text:
@@ -29,7 +39,6 @@ def _extract_spotify_id(text: str) -> str:
         return text
     m = re.search(r"(?:playlist/|playlist:)([A-Za-z0-9]{22})", text)
     return m.group(1) if m else ""
-
 
 def _get_players_and_map(hass: HomeAssistant, entry: config_entries.ConfigEntry):
     opts = entry.options or {}
@@ -42,6 +51,9 @@ def _get_players_and_map(hass: HomeAssistant, entry: config_entries.ConfigEntry)
     playlist_map = {str(k): str(v) for k, v in playlist_map.items()}
     return players, playlist_map
 
+def _get_blockers(entry: config_entries.ConfigEntry) -> list[dict]:
+    ls = entry.options.get(CONF_BLOCKERS, [])
+    return ls if isinstance(ls, list) else []
 
 def _add_schema(default_name: str = "", default_sid: str = "") -> vol.Schema:
     return vol.Schema({
@@ -74,15 +86,50 @@ def _edit_choice_schema(names: list[str]) -> vol.Schema:
 def _readonly_name_and_id_schema(name: str, default_sid: str) -> vol.Schema:
     return vol.Schema({
         vol.Required("playlist_name", default=name): SelectSelector(
-            SelectSelectorConfig(
-                options=[name],
-                multiple=False,
-                custom_value=False,
-            )
+            SelectSelectorConfig(options=[name], multiple=False, custom_value=False)
         ),
         vol.Required(CONF_SPOTIFY_ID, default=default_sid): TextSelector(
             TextSelectorConfig(multiline=False)
         ),
+    })
+
+def _blocker_names(blockers: list[dict]) -> list[str]:
+    return [b.get(BLOCKER_NAME, "") for b in blockers if b.get(BLOCKER_NAME)]
+
+def _find_blocker(blockers: list[dict], name: str) -> dict | None:
+    for b in blockers:
+        if b.get(BLOCKER_NAME, "") == name:
+            return b
+    return None
+
+def _blocker_type_schema(default_type: str | None = None) -> vol.Schema:
+    return vol.Schema({
+        vol.Required(BLOCKER_TYPE, default=default_type or "state"): SelectSelector(
+            SelectSelectorConfig(
+                options=["state", "template"],
+                multiple=False,
+                custom_value=False,
+            )
+        )
+    })
+
+def _add_blocker_state_schema(name: str = "", entity_id: str = "", state_val: str = "", invert: bool = False) -> vol.Schema:
+    return vol.Schema({
+        vol.Required(BLOCKER_NAME, default=name): TextSelector(TextSelectorConfig(multiline=False)),
+        vol.Required(BLOCKER_ENTITY_ID, default=entity_id): EntitySelector(
+            EntitySelectorConfig(multiple=False)
+        ),
+        vol.Required(BLOCKER_STATE, default=state_val): TextSelector(TextSelectorConfig(multiline=False)),
+        vol.Required(BLOCKER_INVERT, default=invert): BooleanSelector(BooleanSelectorConfig()),
+    })
+
+def _add_blocker_template_schema(name: str = "", template_text: str = "", invert: bool = False) -> vol.Schema:
+    return vol.Schema({
+        vol.Required(BLOCKER_NAME, default=name): TextSelector(TextSelectorConfig(multiline=False)),
+        vol.Required(BLOCKER_TEMPLATE, default=template_text): TextSelector(
+            TextSelectorConfig(multiline=True)
+        ),
+        vol.Required(BLOCKER_INVERT, default=invert): BooleanSelector(BooleanSelectorConfig()),
     })
 
 class AmbientMusicConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -102,12 +149,15 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
     def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
         self.config_entry = config_entry
         self._edit_target = None
+        self._pending_blocker_type = None
+        self._edit_blocker_name = None
 
     async def async_step_init(self, user_input=None):
         return self.async_show_menu(
             step_id="init",
             menu_options={
                 "add_playlist": "Add Playlist",
+                "manage_blockers": "Manage Blockers",
                 "manage_playlists": "Manage Playlists",
                 "media_players": "Media Players",
             },
@@ -115,21 +165,20 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
 
     async def async_step_media_players(self, user_input=None):
         current_players, playlist_map = _get_players_and_map(self.hass, self.config_entry)
+        blockers = _get_blockers(self.config_entry)
 
         if user_input is not None:
             options = {
                 CONF_MEDIA_PLAYERS: user_input[CONF_MEDIA_PLAYERS],
                 CONF_PLAYLISTS: playlist_map,
+                CONF_BLOCKERS: blockers,
             }
             return self.async_create_entry(title="", data=options)
 
         return self.async_show_form(
             step_id="media_players",
             data_schema=vol.Schema({
-                vol.Required(
-                    CONF_MEDIA_PLAYERS,
-                    default=current_players
-                ): EntitySelector(
+                vol.Required(CONF_MEDIA_PLAYERS, default=current_players): EntitySelector(
                     EntitySelectorConfig(domain="media_player", multiple=True)
                 ),
             }),
@@ -137,6 +186,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
 
     async def async_step_add_playlist(self, user_input=None):
         _, playlist_map = _get_players_and_map(self.hass, self.config_entry)
+        blockers = _get_blockers(self.config_entry)
 
         if user_input is not None:
             name = str(user_input["name"]).strip()
@@ -164,6 +214,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
             options = {
                 CONF_MEDIA_PLAYERS: _get_players_and_map(self.hass, self.config_entry)[0],
                 CONF_PLAYLISTS: playlist_map,
+                CONF_BLOCKERS: blockers,
             }
             return self.async_create_entry(title="", data=options)
 
@@ -172,6 +223,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
     async def async_step_manage_playlists(self, user_input=None):
         _, playlist_map = _get_players_and_map(self.hass, self.config_entry)
         names = list(playlist_map.keys())
+        blockers = _get_blockers(self.config_entry)
 
         if not names:
             return self.async_show_form(
@@ -195,6 +247,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
 
     async def async_step_edit_playlist(self, user_input=None):
         players, playlist_map = _get_players_and_map(self.hass, self.config_entry)
+        blockers = _get_blockers(self.config_entry)
         old_name = self._edit_target or ""
         old_id = playlist_map.get(old_name, "")
 
@@ -217,6 +270,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
             options = {
                 CONF_MEDIA_PLAYERS: players,
                 CONF_PLAYLISTS: playlist_map,
+                CONF_BLOCKERS: blockers,
             }
             return self.async_create_entry(title="", data=options)
 
@@ -227,6 +281,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
 
     async def async_step_remove_playlists(self, user_input=None):
         players, playlist_map = _get_players_and_map(self.hass, self.config_entry)
+        blockers = _get_blockers(self.config_entry)
         names = list(playlist_map.keys())
 
         if user_input is not None:
@@ -238,6 +293,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
             options = {
                 CONF_MEDIA_PLAYERS: players,
                 CONF_PLAYLISTS: playlist_map,
+                CONF_BLOCKERS: blockers,
             }
             return self.async_create_entry(title="", data=options)
 
@@ -253,3 +309,227 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                 ),
             }),
         )
+
+    async def async_step_manage_blockers(self, user_input=None):
+        blockers = _get_blockers(self.config_entry)
+        names = _blocker_names(blockers)
+
+        return self.async_show_menu(
+            step_id="manage_blockers",
+            menu_options={
+                "add_blocker": "Add blocker",
+                "edit_blocker_choose": "Edit blocker",
+                "remove_blockers": "Remove blockers",
+            } if names else {
+                "add_blocker": "Add blocker",
+            },
+        )
+
+    async def async_step_add_blocker(self, user_input=None):
+        if user_input is not None:
+            self._pending_blocker_type = user_input[BLOCKER_TYPE]
+            return await self.async_step_add_blocker_details()
+        return self.async_show_form(step_id="add_blocker", data_schema=_blocker_type_schema())
+
+    async def async_step_add_blocker_details(self, user_input=None):
+        blockers = _get_blockers(self.config_entry)
+        btype = self._pending_blocker_type or "state"
+
+        if user_input is not None:
+            errors = {}
+
+            if btype == "state":
+                name = str(user_input[BLOCKER_NAME]).strip()
+                entity_id = str(user_input[BLOCKER_ENTITY_ID]).strip()
+                state_val = str(user_input[BLOCKER_STATE]).strip()
+                invert = bool(user_input[BLOCKER_INVERT])
+
+                if not name:
+                    errors[BLOCKER_NAME] = "required"
+                elif name.lower() in {n.lower() for n in _blocker_names(blockers)}:
+                    errors[BLOCKER_NAME] = "already_configured"
+                if not entity_id:
+                    errors[BLOCKER_ENTITY_ID] = "required"
+                if not state_val:
+                    errors[BLOCKER_STATE] = "required"
+
+                if errors:
+                    return self.async_show_form(
+                        step_id="add_blocker_details",
+                        data_schema=_add_blocker_state_schema(name, entity_id, state_val, invert),
+                        errors=errors,
+                    )
+
+                blockers.append({
+                    BLOCKER_ID: str(uuid.uuid4()),
+                    BLOCKER_NAME: name,
+                    BLOCKER_TYPE: "state",
+                    BLOCKER_ENTITY_ID: entity_id,
+                    BLOCKER_STATE: state_val,
+                    BLOCKER_INVERT: invert,
+                })
+
+            else:  # template
+                name = str(user_input[BLOCKER_NAME]).strip()
+                template_text = str(user_input[BLOCKER_TEMPLATE]).strip()
+                invert = bool(user_input[BLOCKER_INVERT])
+
+                if not name:
+                    errors[BLOCKER_NAME] = "required"
+                elif name.lower() in {n.lower() for n in _blocker_names(blockers)}:
+                    errors[BLOCKER_NAME] = "already_configured"
+                if not template_text:
+                    errors[BLOCKER_TEMPLATE] = "required"
+
+                if errors:
+                    return self.async_show_form(
+                        step_id="add_blocker_details",
+                        data_schema=_add_blocker_template_schema(name, template_text, invert),
+                        errors=errors,
+                    )
+
+                blockers.append({
+                    BLOCKER_ID: str(uuid.uuid4()),
+                    BLOCKER_NAME: name,
+                    BLOCKER_TYPE: "template",
+                    BLOCKER_TEMPLATE: template_text,
+                    BLOCKER_INVERT: invert,
+                })
+
+            players, playlist_map = _get_players_and_map(self.hass, self.config_entry)
+            options = {
+                CONF_MEDIA_PLAYERS: players,
+                CONF_PLAYLISTS: playlist_map,
+                CONF_BLOCKERS: blockers,
+            }
+            return self.async_create_entry(title="", data=options)
+
+        if btype == "state":
+            return self.async_show_form(step_id="add_blocker_details", data_schema=_add_blocker_state_schema())
+        return self.async_show_form(step_id="add_blocker_details", data_schema=_add_blocker_template_schema())
+
+    async def async_step_edit_blocker_choose(self, user_input=None):
+        blockers = _get_blockers(self.config_entry)
+        names = _blocker_names(blockers)
+
+        if not names:
+            return self.async_show_form(
+                step_id="edit_blocker_choose",
+                data_schema=vol.Schema({}),
+                errors={"base": "no_blockers"},
+            )
+
+        schema = vol.Schema({
+            vol.Required("name"): SelectSelector(
+                SelectSelectorConfig(options=names, multiple=False, custom_value=False)
+            )
+        })
+
+        if user_input is not None:
+            self._edit_blocker_name = user_input["name"]
+            return await self.async_step_edit_blocker()
+
+        return self.async_show_form(step_id="edit_blocker_choose", data_schema=schema)
+
+    async def async_step_edit_blocker(self, user_input=None):
+        players, playlist_map = _get_players_and_map(self.hass, self.config_entry)
+        blockers = _get_blockers(self.config_entry)
+        blk = _find_blocker(blockers, self._edit_blocker_name or "")
+
+        if not blk:
+            return self.async_abort(reason="unknown_blocker")
+
+        btype = blk[BLOCKER_TYPE]
+
+        if btype == "state":
+            schema = _add_blocker_state_schema(
+                name=blk.get(BLOCKER_NAME, ""),
+                entity_id=blk.get(BLOCKER_ENTITY_ID, ""),
+                state_val=blk.get(BLOCKER_STATE, ""),
+                invert=bool(blk.get(BLOCKER_INVERT, False)),
+            )
+        else:
+            schema = _add_blocker_template_schema(
+                name=blk.get(BLOCKER_NAME, ""),
+                template_text=blk.get(BLOCKER_TEMPLATE, ""),
+                invert=bool(blk.get(BLOCKER_INVERT, False)),
+            )
+
+        if user_input is not None:
+            errors = {}
+            new_name = str(user_input[BLOCKER_NAME]).strip()
+            if not new_name:
+                errors[BLOCKER_NAME] = "required"
+            elif new_name.lower() != (blk.get(BLOCKER_NAME, "").lower()) and new_name.lower() in {n.lower() for n in _blocker_names(blockers)}:
+                errors[BLOCKER_NAME] = "already_configured"
+
+            if btype == "state":
+                entity_id = str(user_input[BLOCKER_ENTITY_ID]).strip()
+                state_val = str(user_input[BLOCKER_STATE]).strip()
+                invert = bool(user_input[BLOCKER_INVERT])
+                if not entity_id:
+                    errors[BLOCKER_ENTITY_ID] = "required"
+                if not state_val:
+                    errors[BLOCKER_STATE] = "required"
+                if errors:
+                    return self.async_show_form(step_id="edit_blocker", data_schema=schema, errors=errors)
+
+                blk.update({
+                    BLOCKER_NAME: new_name,
+                    BLOCKER_ENTITY_ID: entity_id,
+                    BLOCKER_STATE: state_val,
+                    BLOCKER_INVERT: invert,
+                })
+
+            else:
+                template_text = str(user_input[BLOCKER_TEMPLATE]).strip()
+                invert = bool(user_input[BLOCKER_INVERT])
+                if not template_text:
+                    errors[BLOCKER_TEMPLATE] = "required"
+                if errors:
+                    return self.async_show_form(step_id="edit_blocker", data_schema=schema, errors=errors)
+
+                blk.update({
+                    BLOCKER_NAME: new_name,
+                    BLOCKER_TEMPLATE: template_text,
+                    BLOCKER_INVERT: invert,
+                })
+
+            options = {
+                CONF_MEDIA_PLAYERS: players,
+                CONF_PLAYLISTS: playlist_map,
+                CONF_BLOCKERS: blockers,
+            }
+            return self.async_create_entry(title="", data=options)
+
+        return self.async_show_form(step_id="edit_blocker", data_schema=schema)
+
+    async def async_step_remove_blockers(self, user_input=None):
+        players, playlist_map = _get_players_and_map(self.hass, self.config_entry)
+        blockers = _get_blockers(self.config_entry)
+        names = _blocker_names(blockers)
+
+        if not names:
+            return self.async_show_form(
+                step_id="remove_blockers",
+                data_schema=vol.Schema({}),
+                errors={"base": "no_blockers"},
+            )
+
+        if user_input is not None:
+            to_remove = set(user_input.get("names", []))
+            blockers = [b for b in blockers if b.get(BLOCKER_NAME, "") not in to_remove]
+
+            options = {
+                CONF_MEDIA_PLAYERS: players,
+                CONF_PLAYLISTS: playlist_map,
+                CONF_BLOCKERS: blockers,
+            }
+            return self.async_create_entry(title="", data=options)
+
+        schema = vol.Schema({
+            vol.Required("names", default=[]): SelectSelector(
+                SelectSelectorConfig(options=names, multiple=True, custom_value=False)
+            )
+        })
+        return self.async_show_form(step_id="remove_blockers", data_schema=schema)

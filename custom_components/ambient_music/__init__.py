@@ -7,7 +7,8 @@ from .const import DOMAIN
 PLATFORMS = [
     "number", 
     "select", 
-    "binary_sensor"
+    "binary_sensor",
+    "switch"
 ]
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
