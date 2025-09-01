@@ -31,7 +31,6 @@ from .const import (
 
 _SPOTIFY_ID_RE = re.compile(r"^[A-Za-z0-9]{22}$")
 
-
 def _extract_spotify_id(text: str) -> str:
     if not text:
         return ""
@@ -40,7 +39,6 @@ def _extract_spotify_id(text: str) -> str:
         return text
     m = re.search(r"(?:playlist/|playlist:)([A-Za-z0-9]{22})", text)
     return m.group(1) if m else ""
-
 
 def _get_players_and_map(hass: HomeAssistant, entry: config_entries.ConfigEntry):
     opts = entry.options or {}
@@ -145,7 +143,6 @@ class AmbientMusicConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     @staticmethod
     def async_get_options_flow(config_entry):
         return OptionsFlowHandler(config_entry)
-
 
 class OptionsFlowHandler(config_entries.OptionsFlow):
 
@@ -329,7 +326,6 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
         )
 
     async def async_step_add_blocker(self, user_input=None):
-        # Step 1: choose type
         if user_input is not None:
             self._pending_blocker_type = user_input[BLOCKER_TYPE]
             return await self.async_step_add_blocker_details()

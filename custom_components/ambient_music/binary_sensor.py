@@ -75,7 +75,7 @@ class PlaylistEnabledSensor(BinarySensorEntity, RestoreEntity):
     def device_info(self):
         return DEVICE_INFO
 
-class BlockersClear(BinarySensorEntity):
+class BlockersClear(BinarySensorEntity, RestoreEntity):
 
     _attr_name = "Ambient Music Blockers Clear"
     _attr_unique_id = "ambient_music_blockers_clear"
@@ -95,6 +95,13 @@ class BlockersClear(BinarySensorEntity):
 
     async def async_added_to_hass(self):
         await super().async_added_to_hass()
+
+        if (last := await self.async_get_last_state()) is not None:
+            self._attr_is_on = last.state == "on"
+            if last.attributes:
+                self._attr_extra_state_attributes = dict(last.attributes)
+        self.async_write_ha_state()
+
         await self._refresh_blockers_and_listeners()
         self._evaluate_and_write()
 
