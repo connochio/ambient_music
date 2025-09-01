@@ -32,14 +32,14 @@ User configurable options include:
 - Music fade out time
 - Time to wait between swapping playlists
 - Playlist names and spotify IDs
+- Blockers to prevent Ambient Music from running
+  - available via either entity selection or template 
 
 
 <details>
   <summary>Planned future helpers, switches and/or user-configurable settings</summary>
   <br />
   
-  - Blocker entities.
-    - These entities will block or stop ambient music from playing based on an entity state or custom template.
   - Configurable sleep mode.
     - Sleep mode will play a user-selected playlist at night, based on user-set time of day binary sensors.  
       This will override any currently selected playlist.
@@ -53,3 +53,4 @@ User configurable options include:
 
 ## Credits and Thanks
 
+Special thanks to Lauren Peploe for her design and creation of the Ambient Music logo
