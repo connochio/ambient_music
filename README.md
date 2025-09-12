@@ -5,11 +5,13 @@
 A Home Assistant integration for playing ambient music on supported players via Music Assistant.
 
 > [!IMPORTANT]
-> This integration is currently in the alpha stage, awaiting further script and automation implementation.  
-> It is not yet a fully automated ambient music integration.
+> This integration is currently in the beta stage, awaiting feedback and improvements.
+>   
+> Bugs may be present and some functionality may be missing.  
 
 > [!NOTE]
-> This integration is intended to be used alongside Music Assistant and Spotify.  
+> This integration is intended to be used alongside Music Assistant and Spotify.
+>   
 > Future updates may include further providers and players, but this is not currently in the roadmap.
 
 ## Installation
