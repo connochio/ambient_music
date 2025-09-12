@@ -22,9 +22,7 @@ Install this integration via HACS with the link above.
 
 This integration allows for users to create playlist selections that will play automatically on supported players via music assistant.  
 
-When turned on or off, music will fade in and out for a configurable amount of seconds, to a user-selected default volume.  
-
-Playlists will also fade out and back in from each-other seamlessly when changed.
+Playlists will fade out and back in from each-other seamlessly when changed, and fade in and out when Ambient Music is turned on or off.  
 
 User configurable options include:
 - Default volume
