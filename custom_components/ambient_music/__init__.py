@@ -217,12 +217,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.services.async_register(DOMAIN, "play_current_playlist", svc_play_current_playlist, schema=play_schema)
 
-    stop_schema = vol.Schema({vol.Optional("blockers_cleared", default=True): cv.boolean})
+    stop_schema = vol.Schema({})
 
     async def svc_stop_playing(call: ServiceCall):
-        if call.data.get("blockers_cleared", True) and not _blockers_clear():
-            return
         targets = await _resolve_targets(call)
+        if not targets:
+            return
         fade_down = _get_state_float("number.ambient_music_volume_fade_down_seconds", 5.0)
         await _fade_volume(targets, 0.0, fade_down, "logarithmic")
         await _pause(targets)

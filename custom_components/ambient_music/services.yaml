@@ -77,12 +77,6 @@ stop_playing:
         entity:
           domain: media_player
           multiple: true
-    blockers_cleared:
-      name: Require blockers to be clear
-      required: false
-      default: false
-      selector:
-        boolean:
 
 fade_volume:
   name: Fade volume
