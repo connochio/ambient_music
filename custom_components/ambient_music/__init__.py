@@ -7,6 +7,8 @@ from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.service import async_extract_entity_ids
+import logging
+_LOGGER = logging.getLogger(__name__)
 
 from .const import DOMAIN, CONF_MEDIA_PLAYERS
 
@@ -31,9 +33,31 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         players = opts.get(CONF_MEDIA_PLAYERS, []) or []
         return list(players)
 
-    def _resolve_targets(call: ServiceCall) -> list[str]:
-        ids = list(async_extract_entity_ids(hass, call))
-        return ids if ids else _configured_players()
+    async def _resolve_targets(call: ServiceCall) -> list[str]:
+        try:
+            ids_from_target = await async_extract_entity_ids(hass, call)
+        except Exception:
+            ids_from_target = set()
+        ids = list(ids_from_target)
+
+        data_ids = call.data.get("entity_id")
+        if data_ids:
+            if isinstance(data_ids, str):
+                ids.append(data_ids)
+            elif isinstance(data_ids, (list, tuple)):
+                ids.extend(x for x in data_ids if isinstance(x, str))
+
+        ids = [i for i in ids if isinstance(i, str) and i.startswith("media_player.")]
+        ids = sorted(set(ids))
+
+        if not ids:
+            fallback = _configured_players()
+            if not fallback:
+                _LOGGER.warning(
+                    "Ambient Music service call without targets and no speakers configured in options"
+                )
+            return fallback
+        return ids
 
     def _get_state_float(entity_id: str, default: float) -> float:
         st = hass.states.get(entity_id)
@@ -133,7 +157,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
 
     async def svc_fade_volume(call: ServiceCall):
-        targets = _resolve_targets(call)
+        targets = await _resolve_targets(call)
         target_volume = float(call.data["target_volume"])
         duration = float(call.data["duration"])
         curve = call.data.get("curve", "logarithmic")
@@ -146,7 +170,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     async def svc_pause_for_switchover(call: ServiceCall):
         if call.data.get("blockers_cleared", True) and not _blockers_clear():
             return
-        targets = _resolve_targets(call)
+        targets = await _resolve_targets(call)
         fade_down = _get_state_float("number.ambient_music_volume_fade_down_seconds", 5.0)
         await _fade_volume(targets, 0.0, fade_down, "logarithmic")
         await _volume_set(targets, 0.0)
@@ -166,7 +190,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     async def svc_play_current_playlist(call: ServiceCall):
         if call.data.get("blockers_cleared", True) and not _blockers_clear():
             return
-        targets = _resolve_targets(call)
+        targets = await _resolve_targets(call)
         if not targets:
             return
 
@@ -198,7 +222,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     async def svc_stop_playing(call: ServiceCall):
         if call.data.get("blockers_cleared", True) and not _blockers_clear():
             return
-        targets = _resolve_targets(call)
+        targets = await _resolve_targets(call)
         fade_down = _get_state_float("number.ambient_music_volume_fade_down_seconds", 5.0)
         await _fade_volume(targets, 0.0, fade_down, "logarithmic")
         await _pause(targets)

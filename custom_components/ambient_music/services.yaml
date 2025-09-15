@@ -1,10 +1,15 @@
 pause_for_switchover:
   name: Pause for switchover
   description: Fades volume down to 0 using Ambient Music settings and pauses playback.
-  target:
-    entity:
-      domain: media_player
   fields:
+    entity_id:
+      name: Speakers (override, optional)
+      description: Leave empty to use the speakers configured in the Ambient Music integration.
+      required: false
+      selector:
+        entity:
+          domain: media_player
+          multiple: true
     blockers_cleared:
       name: Require blockers to be clear
       description: If true, only run when Ambient Music blockers are clear.
@@ -15,21 +20,25 @@ pause_for_switchover:
 
 play_current_playlist:
   name: Play current playlist
-  description: Starts the currently selected playlist at volume 0, then fades up to a target volume.
-  target:
-    entity:
-      domain: media_player
+  description: Start the selected playlist at volume 0, then fade up.
   fields:
+    entity_id:
+      name: Speakers (override, optional)
+      description: Leave empty to use the speakers configured in the Ambient Music integration.
+      required: false
+      selector:
+        entity:
+          domain: media_player
+          multiple: true
     blockers_cleared:
       name: Require blockers to be clear
-      description: If true, only run when Ambient Music blockers are clear.
       required: false
       default: true
       selector:
         boolean:
     fade_up_duration:
       name: Fade-up duration (seconds)
-      description: Overrides Ambient Music settings if provided.
+      description: Overrides helper if provided.
       required: false
       selector:
         number:
@@ -38,7 +47,7 @@ play_current_playlist:
           step: 1
     target_volume:
       name: Target volume (0.0–1.0)
-      description: Overrides Ambient Music settings if provided.
+      description: Overrides helper if provided.
       required: false
       selector:
         number:
@@ -59,13 +68,17 @@ play_current_playlist:
 stop_playing:
   name: Stop playing
   description: Fade volume down to 0 using Ambient Music settings and pauses playback.
-  target:
-    entity:
-      domain: media_player
   fields:
+    entity_id:
+      name: Speakers (override, optional)
+      description: Leave empty to use the speakers configured in the Ambient Music integration.
+      required: false
+      selector:
+        entity:
+          domain: media_player
+          multiple: true
     blockers_cleared:
       name: Require blockers to be clear
-      description: If true, only run when Ambient Music blockers are clear.
       required: false
       default: true
       selector:
@@ -73,11 +86,16 @@ stop_playing:
 
 fade_volume:
   name: Fade volume
-  description: Fades a media player’s volume to a target over a duration with a chosen curve.
-  target:
-    entity:
-      domain: media_player
+  description: Fade a media player’s volume to a target over a duration with a chosen curve.
   fields:
+    entity_id:
+      name: Speakers (override, optional)
+      description: Leave empty to use the speakers configured in the Ambient Music integration.
+      required: false
+      selector:
+        entity:
+          domain: media_player
+          multiple: true
     target_volume:
       name: Target volume (0.0–1.0)
       required: true
