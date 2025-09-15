@@ -80,7 +80,7 @@ stop_playing:
     blockers_cleared:
       name: Require blockers to be clear
       required: false
-      default: true
+      default: false
       selector:
         boolean:
 
