@@ -47,9 +47,12 @@ User configurable options include:
     - Ambient music will play only during set hours, based on user-set time of day binary sensors.
 </details>
 
-## Documentation
+## Setup and Documentation
 
-[Documentation](https://github.com/connochio/ambient_music_documentation#readme)
+To get this integration fully up and running, a small amount of setup is needed.  
+Setup instructions and automation blueprints can be found within the documentation guthub page below:
+
+[Setup and Documentation Information](https://github.com/connochio/ambient_music_documentation#readme)
 
 ## Credits and Thanks
 
