@@ -5,11 +5,13 @@
 A Home Assistant integration for playing ambient music on supported players via Music Assistant.
 
 > [!IMPORTANT]
-> This integration is currently in the alpha stage, awaiting further script and automation implementation.  
-> It is not yet a fully automated ambient music integration.
+> This integration is currently in the beta stage, awaiting feedback and improvements.
+>   
+> Bugs may be present and some functionality may be missing.  
 
 > [!NOTE]
-> This integration is intended to be used alongside Music Assistant and Spotify.  
+> This integration is intended to be used alongside Music Assistant and Spotify.
+>   
 > Future updates may include further providers and players, but this is not currently in the roadmap.
 
 ## Installation
@@ -22,9 +24,7 @@ Install this integration via HACS with the link above.
 
 This integration allows for users to create playlist selections that will play automatically on supported players via music assistant.  
 
-When turned on or off, music will fade in and out for a configurable amount of seconds, to a user-selected default volume.  
-
-Playlists will also fade out and back in from each-other seamlessly when changed.
+Playlists will fade out and back in from each-other seamlessly when changed, and fade in and out when Ambient Music is turned on or off.  
 
 User configurable options include:
 - Default volume
@@ -47,9 +47,9 @@ User configurable options include:
     - Ambient music will play only during set hours, based on user-set time of day binary sensors.
 </details>
 
-## Setup
+## Documentation
 
-<i>Coming Soon</i>
+[Documentation](https://github.com/connochio/ambient_music_documentation#readme)
 
 ## Credits and Thanks
 

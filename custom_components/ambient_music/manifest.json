@@ -4,10 +4,10 @@
   "codeowners": ["@connochio"],
   "config_flow": true,
   "dependencies": [],
-  "documentation": "https://github.com/connochio/ambient_music#readme",
+  "documentation": "https://github.com/connochio/ambient_music_documentation#readme",
   "integration_type": "device",
   "iot_class": "local_polling",
   "issue_tracker": "https://github.com/connochio/ambient_music/issues",
   "requirements": [],
-  "version": "v1.1.8-a.0"
+  "version": "v1.2.0-b.0"
 }
