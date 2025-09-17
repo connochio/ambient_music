@@ -6,7 +6,6 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from .const import DEVICE_INFO, CONF_PLAYLISTS
 
 def _get_playlist_mapping(entry: ConfigEntry) -> dict[str, str]:
-    """Strictly from options: {name: spotify_id}."""
     raw = entry.options.get(CONF_PLAYLISTS, {})
     if not isinstance(raw, dict):
         return {}
@@ -45,14 +44,16 @@ class AmbientMusicPlaylistSelect(SelectEntity):
     @property
     def extra_state_attributes(self):
         attrs = {
-            "playlists": self._mapping,      # {name: spotify_id}
-            "playlist_uris": self._uri_map,  # {name: spotify:playlist:<id>}
+            "playlists": self._mapping,
+            "playlist_uris": self._uri_map,
         }
         current_id = ""
         current_uri = ""
         if self._attr_current_option:
             current_id = self._mapping.get(self._attr_current_option, "")
             current_uri = self._uri_map.get(self._attr_current_option, "")
+        attrs["current_playlist_id"] = current_id
+        attrs["current_playlist_uri"] = current_uri
         attrs["current_spotify_id"] = current_id
         attrs["current_spotify_uri"] = current_uri
         return attrs

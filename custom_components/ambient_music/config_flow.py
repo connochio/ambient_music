@@ -19,7 +19,7 @@ from .const import (
     DOMAIN,
     CONF_MEDIA_PLAYERS,
     CONF_PLAYLISTS,
-    CONF_SPOTIFY_ID,
+    CONF_PLAYLIST_ID,
     CONF_BLOCKERS,
     BLOCKER_ID,
     BLOCKER_NAME,
@@ -30,7 +30,7 @@ from .const import (
     BLOCKER_TEMPLATE,
 )
 
-_SPOTIFY_ID_RE = re.compile(r"^[A-Za-z0-9]{22}$")
+_PLAYLIST_ID_RE = re.compile(r"^[A-Za-z0-9]{22}$")
 
 def _extract_spotify_id(text: str) -> str:
     if not text:
@@ -85,7 +85,7 @@ def _readonly_name_and_id_schema(name: str, default_sid: str) -> vol.Schema:
         vol.Required("playlist_name", default=name): SelectSelector(
             SelectSelectorConfig(options=[name], multiple=False, custom_value=False)
         ),
-        vol.Required(CONF_SPOTIFY_ID, default=default_sid): TextSelector(
+        vol.Required(CONF_PLAYLIST_ID, default=default_sid): TextSelector(
             TextSelectorConfig(multiline=False)
         ),
     })
@@ -167,7 +167,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
             options = {
                 CONF_MEDIA_PLAYERS: list(user_input[CONF_MEDIA_PLAYERS]),
                 CONF_PLAYLISTS: dict(playlist_map),
-                CONF_BLOCKERS: _get_blockers(self.config_entry),  # deepcopy
+                CONF_BLOCKERS: _get_blockers(self.config_entry),
             }
             return self.async_create_entry(title="", data=options)
 
@@ -185,8 +185,8 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
 
         if user_input is not None:
             name = str(user_input["name"]).strip()
-            raw = str(user_input[CONF_SPOTIFY_ID]).strip()
-            sid = _extract_spotify_id(raw)
+            raw = str(user_input[CONF_PLAYLIST_ID]).strip()
+            sid = _extract_playlist_id(raw)
 
             errors = {}
             if not name:
@@ -196,7 +196,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                 if name.lower() in existing_lower:
                     errors["name"] = "already_configured"
             if not sid:
-                errors[CONF_SPOTIFY_ID] = "invalid_spotify_id"
+                errors[CONF_SPOTIFY_ID] = "invalid_playlist_id"
 
             if errors:
                 return self.async_show_form(
@@ -211,7 +211,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
             options = {
                 CONF_MEDIA_PLAYERS: _get_players_and_map(self.hass, self.config_entry)[0],
                 CONF_PLAYLISTS: new_map,
-                CONF_BLOCKERS: _get_blockers(self.config_entry),  # deepcopy
+                CONF_BLOCKERS: _get_blockers(self.config_entry),
             }
             return self.async_create_entry(title="", data=options)
 
@@ -252,7 +252,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
 
             errors = {}
             if not sid:
-                errors[CONF_SPOTIFY_ID] = "invalid_spotify_id"
+                errors[CONF_SPOTIFY_ID] = "invalid_playlist_id"
 
             if errors:
                 return self.async_show_form(
@@ -266,7 +266,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
             options = {
                 CONF_MEDIA_PLAYERS: list(players),
                 CONF_PLAYLISTS: new_map,
-                CONF_BLOCKERS: _get_blockers(self.config_entry),  # deepcopy
+                CONF_BLOCKERS: _get_blockers(self.config_entry),
             }
             return self.async_create_entry(title="", data=options)
 
@@ -286,7 +286,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
             options = {
                 CONF_MEDIA_PLAYERS: list(players),
                 CONF_PLAYLISTS: new_map,
-                CONF_BLOCKERS: _get_blockers(self.config_entry),  # deepcopy
+                CONF_BLOCKERS: _get_blockers(self.config_entry),
             }
             return self.async_create_entry(title="", data=options)
 
