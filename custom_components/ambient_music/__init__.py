@@ -195,7 +195,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             return
 
         sel = hass.states.get("select.ambient_music_playlists")
-        uri = sel and sel.attributes.get("current_playlist_uri") or sel.attributes.get("current_spotify_uri")
+        uri = sel and sel.attributes.get("current_playlist_uri")
         if not uri:
             return
 
