@@ -2,6 +2,7 @@ from homeassistant.components.select import SelectEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.restore_state import RestoreEntity
 
 from .const import DEVICE_INFO, CONF_PLAYLISTS
 
@@ -28,9 +29,8 @@ async def async_setup_entry(
     entity = AmbientMusicPlaylistSelect(playlists, mapping)
     async_add_entities([entity])
 
-from homeassistant.helpers.restore_state import RestoreEntity
-
 class AmbientMusicPlaylistSelect(SelectEntity, RestoreEntity):
+    _attr_should_poll = False
     _attr_name = "Ambient Music Playlists"
     _attr_unique_id = "ambient_music_playlists"
 
@@ -39,14 +39,23 @@ class AmbientMusicPlaylistSelect(SelectEntity, RestoreEntity):
         self._mapping = mapping
         self._attr_current_option = None
 
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        last = await self.async_get_last_state()
+        if last and last.state in (self._attr_options or []):
+            self._attr_current_option = last.state
+
+    async def async_select_option(self, option: str) -> None:
+        if option not in self._attr_options:
+            return
+        if option == self._attr_current_option:
+            return
+        self._attr_current_option = option
+        self.async_write_ha_state()
+
     @property
     def device_info(self):
         return DEVICE_INFO
-
-    async def async_select_option(self, option: str) -> None:
-        if option in self._attr_options:
-            self._attr_current_option = option
-            self.async_write_ha_state()
 
     @property
     def extra_state_attributes(self):
