@@ -1,4 +1,9 @@
-[![Static Badge](https://img.shields.io/badge/HACS-Custom-41BDF5?style=for-the-badge&logo=homeassistantcommunitystore&logoColor=white)](https://github.com/hacs/integration)  
+[![Static Badge](https://img.shields.io/badge/HACS-Custom-41BDF5?style=for-the-badge&logo=homeassistantcommunitystore&logoColor=white)](https://github.com/hacs/integration) 
+![Dynamic JSON Badge](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fanalytics.home-assistant.io%2Fcustom_integrations.json&query=%24.ambient_music.total&style=for-the-badge&label=Installs&color=brightgreen)
+![GitHub Release](https://img.shields.io/github/v/release/connochio/ambient_music?style=for-the-badge&label=Current%20Release&color=41BDF5&cacheSeconds=15600)
+![GitHub Issues or Pull Requests](https://img.shields.io/github/issues/connochio/ambient_music?style=for-the-badge)
+
+
 
 # Ambient Music
 
@@ -23,6 +28,11 @@ Install this integration via HACS with the link above.
 ## Description
 
 This integration allows for users to create playlist selections that will play automatically on supported players via music assistant.  
+
+Currently support music providers are:
+- Spotify
+- Youtube Music
+- Music Assistant Local Files
 
 Playlists will fade out and back in from each-other seamlessly when changed, and fade in and out when Ambient Music is turned on or off.  
 
