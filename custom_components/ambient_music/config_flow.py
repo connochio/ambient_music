@@ -37,6 +37,7 @@ except ImportError:
 
 _SPOTIFY_ID_RE = re.compile(r"^[A-Za-z0-9]{22}$")
 _YTUBE_ID_RE = re.compile(r"^[A-Za-z0-9_-]{34}$")
+_LOCAL_ID_RE = re.compile(r"[0-9]{1,3}$")
 
 def _extract_spotify_id(text: str) -> str:
     if not text:
@@ -55,6 +56,15 @@ def _extract_ytm_id(text: str) -> str:
     if m:
         s = m.group(1)
     return s if _YTUBE_ID_RE.fullmatch(s) else ""
+    
+def _extract_local_id(text: str) -> str:
+    if not text:
+        return ""
+    s = text.strip()
+    m = re.search(r"(?:media-source://mass/playlists/|library://playlist/)([0-9]{1,3})", s)
+    if m:
+        s = m.group(1)
+    return s if _LOCAL_ID_RE.fullmatch(s) else ""
 
 def _parse_playlist_input(text: str) -> tuple[str, str] | None:
     if not text:
@@ -67,11 +77,16 @@ def _parse_playlist_input(text: str) -> tuple[str, str] | None:
     if "youtube" in s or "music.youtube.com" in s or "ytmusic://" in s or "list=" in s:
         yid = _extract_ytm_id(s)
         return ("youtube", yid) if yid else None
+    if "library" in s or "media-source" in s:
+        lid = _extract_local_id(s)
+        return ("local", lid) if lid else None
 
     if _SPOTIFY_ID_RE.fullmatch(s):
         return ("spotify", s)
     if _YTUBE_ID_RE.fullmatch(s):
         return ("youtube", s)
+    if _LOCAL_ID_RE.fullmatch(s):
+        return ("local", s)
 
     return None
 
