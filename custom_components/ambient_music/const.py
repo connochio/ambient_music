@@ -2,7 +2,7 @@ DOMAIN = "ambient_music"
 
 CONF_MEDIA_PLAYERS = "media_players"
 CONF_PLAYLISTS = "playlists"
-CONF_SPOTIFY_ID = "playlist_id"
+CONF_PLAYLIST_ID = "playlist_id"
 CONF_SPOTIFY_ID = CONF_PLAYLIST_ID
 CONF_BLOCKERS = "blockers"
 BLOCKER_ID = "id"
