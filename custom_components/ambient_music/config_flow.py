@@ -4,6 +4,7 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
 from copy import deepcopy
+from urllib.parse import urlparse, parse_qs
 from homeassistant.helpers.selector import (
     EntitySelector,
     EntitySelectorConfig,
@@ -19,7 +20,6 @@ from .const import (
     DOMAIN,
     CONF_MEDIA_PLAYERS,
     CONF_PLAYLISTS,
-    CONF_SPOTIFY_ID,
     CONF_BLOCKERS,
     BLOCKER_ID,
     BLOCKER_NAME,
@@ -30,16 +30,65 @@ from .const import (
     BLOCKER_TEMPLATE,
 )
 
+try:
+    from .const import CONF_PLAYLIST_ID as CONF_ID
+except ImportError:
+    from .const import CONF_SPOTIFY_ID as CONF_ID
+
 _SPOTIFY_ID_RE = re.compile(r"^[A-Za-z0-9]{22}$")
+_YTUBE_ID_RE = re.compile(r"^[A-Za-z0-9_-]{34}$")
+_LOCAL_ID_RE = re.compile(r"[0-9]{1,3}$")
 
 def _extract_spotify_id(text: str) -> str:
     if not text:
         return ""
-    text = str(text).strip()
-    if _SPOTIFY_ID_RE.fullmatch(text):
-        return text
-    m = re.search(r"(?:playlist/|playlist:)([A-Za-z0-9]{22})", text)
+    s = text.strip()
+    if _SPOTIFY_ID_RE.fullmatch(s):
+        return s
+    m = re.search(r"(?:spotify:playlist:|open\.spotify\.com/playlist/)([A-Za-z0-9]{22})", s)
     return m.group(1) if m else ""
+
+def _extract_ytm_id(text: str) -> str:
+    if not text:
+        return ""
+    s = text.strip()
+    m = re.search(r"(?:list=|youtube:playlist:|ytmusic://playlist/)([A-Za-z0-9_-]{34})", s)
+    if m:
+        s = m.group(1)
+    return s if _YTUBE_ID_RE.fullmatch(s) else ""
+    
+def _extract_local_id(text: str) -> str:
+    if not text:
+        return ""
+    s = text.strip()
+    m = re.search(r"(?:media-source://mass/playlists/|library://playlist/)([0-9]{1,3})", s)
+    if m:
+        s = m.group(1)
+    return s if _LOCAL_ID_RE.fullmatch(s) else ""
+
+def _parse_playlist_input(text: str) -> tuple[str, str] | None:
+    if not text:
+        return None
+    s = text.strip()
+
+    if "spotify" in s:
+        sid = _extract_spotify_id(s)
+        return ("spotify", sid) if sid else None
+    if "youtube" in s or "music.youtube.com" in s or "ytmusic://" in s or "list=" in s:
+        yid = _extract_ytm_id(s)
+        return ("youtube", yid) if yid else None
+    if "library" in s or "media-source" in s:
+        lid = _extract_local_id(s)
+        return ("local", lid) if lid else None
+
+    if _SPOTIFY_ID_RE.fullmatch(s):
+        return ("spotify", s)
+    if _YTUBE_ID_RE.fullmatch(s):
+        return ("youtube", s)
+    if _LOCAL_ID_RE.fullmatch(s):
+        return ("local", s)
+
+    return None
 
 def _get_players_and_map(hass: HomeAssistant, entry: config_entries.ConfigEntry):
     opts = entry.options or {}
@@ -57,7 +106,7 @@ def _add_schema(default_name: str = "", default_sid: str = "") -> vol.Schema:
         vol.Required("name", default=default_name): TextSelector(
             TextSelectorConfig(multiline=False)
         ),
-        vol.Required(CONF_SPOTIFY_ID, default=default_sid): TextSelector(
+        vol.Required(CONF_ID, default=default_sid): TextSelector(
             TextSelectorConfig(multiline=False)
         ),
     })
@@ -85,11 +134,11 @@ def _readonly_name_and_id_schema(name: str, default_sid: str) -> vol.Schema:
         vol.Required("playlist_name", default=name): SelectSelector(
             SelectSelectorConfig(options=[name], multiple=False, custom_value=False)
         ),
-        vol.Required(CONF_SPOTIFY_ID, default=default_sid): TextSelector(
+        vol.Required(CONF_ID, default=default_sid): TextSelector(
             TextSelectorConfig(multiline=False)
         ),
     })
-    
+
 def _blocker_names(blockers: list[dict]) -> list[str]:
     return [b.get(BLOCKER_NAME, "") for b in blockers if b.get(BLOCKER_NAME)]
 
@@ -167,7 +216,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
             options = {
                 CONF_MEDIA_PLAYERS: list(user_input[CONF_MEDIA_PLAYERS]),
                 CONF_PLAYLISTS: dict(playlist_map),
-                CONF_BLOCKERS: _get_blockers(self.config_entry),  # deepcopy
+                CONF_BLOCKERS: _get_blockers(self.config_entry),
             }
             return self.async_create_entry(title="", data=options)
 
@@ -181,12 +230,12 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
         )
 
     async def async_step_add_playlist(self, user_input=None):
-        _, playlist_map = _get_players_and_map(self.hass, self.config_entry)
+        players, playlist_map = _get_players_and_map(self.hass, self.config_entry)
+        blockers = _get_blockers(self.config_entry)
 
         if user_input is not None:
-            name = str(user_input["name"]).strip()
-            raw = str(user_input[CONF_SPOTIFY_ID]).strip()
-            sid = _extract_spotify_id(raw)
+            name = str(user_input.get("name", "")).strip()
+            raw = str(user_input.get(CONF_ID, "")).strip()
 
             errors = {}
             if not name:
@@ -195,8 +244,10 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                 existing_lower = {n.lower() for n in playlist_map}
                 if name.lower() in existing_lower:
                     errors["name"] = "already_configured"
-            if not sid:
-                errors[CONF_SPOTIFY_ID] = "invalid_spotify_id"
+    
+            parsed = _parse_playlist_input(raw)
+            if not parsed or not parsed[1]:
+                errors[CONF_ID] = "invalid_playlist_id"
 
             if errors:
                 return self.async_show_form(
@@ -205,13 +256,14 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                     errors=errors,
                 )
 
+            _, canonical_id = parsed
             new_map = dict(playlist_map)
-            new_map[name] = sid
+            new_map[name] = canonical_id
 
             options = {
-                CONF_MEDIA_PLAYERS: _get_players_and_map(self.hass, self.config_entry)[0],
+                CONF_MEDIA_PLAYERS: players,
                 CONF_PLAYLISTS: new_map,
-                CONF_BLOCKERS: _get_blockers(self.config_entry),  # deepcopy
+                CONF_BLOCKERS: blockers,
             }
             return self.async_create_entry(title="", data=options)
 
@@ -247,12 +299,12 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
         old_id = playlist_map.get(old_name, "")
 
         if user_input is not None:
-            raw = str(user_input.get(CONF_SPOTIFY_ID, "")).strip()
+            raw = str(user_input.get(CONF_ID, "")).strip()
             sid = _extract_spotify_id(raw)
 
             errors = {}
             if not sid:
-                errors[CONF_SPOTIFY_ID] = "invalid_spotify_id"
+                errors[CONF_ID] = "invalid_playlist_id"
 
             if errors:
                 return self.async_show_form(
@@ -266,7 +318,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
             options = {
                 CONF_MEDIA_PLAYERS: list(players),
                 CONF_PLAYLISTS: new_map,
-                CONF_BLOCKERS: _get_blockers(self.config_entry),  # deepcopy
+                CONF_BLOCKERS: _get_blockers(self.config_entry),
             }
             return self.async_create_entry(title="", data=options)
 
@@ -286,7 +338,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
             options = {
                 CONF_MEDIA_PLAYERS: list(players),
                 CONF_PLAYLISTS: new_map,
-                CONF_BLOCKERS: _get_blockers(self.config_entry),  # deepcopy
+                CONF_BLOCKERS: _get_blockers(self.config_entry),
             }
             return self.async_create_entry(title="", data=options)
 

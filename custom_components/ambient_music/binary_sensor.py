@@ -1,14 +1,14 @@
 import re
+from datetime import timedelta
+
 from homeassistant.components.binary_sensor import BinarySensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.event import async_track_state_change_event
+from homeassistant.helpers.event import async_track_state_change_event, async_track_time_interval
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.template import Template
-from datetime import timedelta
-from homeassistant.helpers.event import async_track_time_interval
 
 from .const import (
     CONF_PLAYLISTS, DEVICE_INFO,
@@ -19,11 +19,13 @@ from .const import (
 SELECT_ENTITY_ID = "select.ambient_music_playlists"
 MASTER_SWITCH_ENTITY_ID = "switch.ambient_music_master_enable"
 
+
 def _slugify_playlist(playlist_name: str) -> str:
     slug = playlist_name.lower()
     slug = re.sub(r"\s+", "_", slug)
     slug = re.sub(r"[^a-z0-9_]", "", slug)
     return slug
+
 
 def _get_playlist_names(entry: ConfigEntry) -> list[str]:
     raw = entry.options.get(CONF_PLAYLISTS, {})
@@ -31,49 +33,61 @@ def _get_playlist_names(entry: ConfigEntry) -> list[str]:
         return []
     return list(raw.keys())
 
+
 def _to_bool(val) -> bool:
     if isinstance(val, bool):
         return val
     s = str(val).strip().lower()
     return s in ("1", "true", "on", "yes", "y", "enabled")
 
+
 class PlaylistEnabledSensor(BinarySensorEntity, RestoreEntity):
+
+    _attr_should_poll = False
 
     def __init__(self, hass: HomeAssistant, playlist_name: str):
         self.hass = hass
         self._playlist_name = playlist_name
         self._attr_name = f"Ambient Music {playlist_name} Enabled"
         self._attr_unique_id = f"ambient_music_{_slugify_playlist(playlist_name)}_enabled"
-        self._attr_is_on = False
+        self._attr_is_on = None
 
-    async def async_added_to_hass(self):
+    async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
-        if (last_state := await self.async_get_last_state()):
-            self._attr_is_on = last_state.state == "on"
+
+        last = await self.async_get_last_state()
+        if last and last.state in ("on", "off"):
+            self._attr_is_on = (last.state == "on")
+
         async_track_state_change_event(self.hass, SELECT_ENTITY_ID, self._handle_select_change)
-        self._update_state()
+
+        self._evaluate_and_maybe_write()
 
     @callback
-    def _handle_select_change(self, event):
-        self._update_state()
+    def _handle_select_change(self, _event) -> None:
+        self._evaluate_and_maybe_write()
 
     @callback
-    def _update_state(self):
-        state = self.hass.states.get(SELECT_ENTITY_ID)
-        if state and state.state:
-            self._attr_is_on = state.state == self._playlist_name
-            self.async_write_ha_state()
+    def _evaluate_and_maybe_write(self) -> None:
+        st = self.hass.states.get(SELECT_ENTITY_ID)
+        new_on = bool(st and st.state == self._playlist_name)
+        if new_on == self._attr_is_on:
+            return
+        self._attr_is_on = new_on
+        self.async_write_ha_state()
 
     @property
-    def is_on(self):
-        return self._attr_is_on
+    def is_on(self) -> bool:
+        return bool(self._attr_is_on)
 
     @property
     def device_info(self):
         return DEVICE_INFO
 
+
 class BlockersClear(BinarySensorEntity, RestoreEntity):
-    
+
+    _attr_should_poll = False
     _attr_name = "Ambient Music Blockers Clear"
     _attr_unique_id = "ambient_music_blockers_clear"
 
@@ -84,32 +98,34 @@ class BlockersClear(BinarySensorEntity, RestoreEntity):
         self._listened_entities: set[str] = set()
         self._unsubs: list = []
         self._interval_added = False
-        self._attr_is_on = True
+        self._attr_is_on = None
+        self._attr_extra_state_attributes = None
 
     @property
     def device_info(self):
         return DEVICE_INFO
 
-    async def async_added_to_hass(self):
+    async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
 
-        if (last := await self.async_get_last_state()) is not None:
-            self._attr_is_on = last.state == "on"
+        last = await self.async_get_last_state()
+        if last is not None:
+            if last.state in ("on", "off"):
+                self._attr_is_on = (last.state == "on")
             if last.attributes:
                 self._attr_extra_state_attributes = dict(last.attributes)
-            self.async_write_ha_state()
 
         await self._refresh_blockers_and_listeners()
-        self._evaluate_and_write()
+        self._evaluate_and_maybe_write()
 
-    async def async_will_remove_from_hass(self):
+    async def async_will_remove_from_hass(self) -> None:
         for u in self._unsubs:
             u()
         self._unsubs.clear()
         self._listened_entities.clear()
         await super().async_will_remove_from_hass()
 
-    async def _refresh_blockers_and_listeners(self):
+    async def _refresh_blockers_and_listeners(self) -> None:
         blockers = self._entry.options.get(CONF_BLOCKERS, [])
         if not isinstance(blockers, list):
             blockers = []
@@ -142,16 +158,16 @@ class BlockersClear(BinarySensorEntity, RestoreEntity):
                 self._interval_added = True
 
     @callback
-    def _handle_change(self, event):
+    def _handle_change(self, _event) -> None:
         self.hass.async_create_task(self._async_refresh_and_eval())
 
     @callback
-    def _handle_interval(self, now):
+    def _handle_interval(self, _now) -> None:
         self.hass.async_create_task(self._async_refresh_and_eval())
 
-    async def _async_refresh_and_eval(self):
+    async def _async_refresh_and_eval(self) -> None:
         await self._refresh_blockers_and_listeners()
-        self._evaluate_and_write()
+        self._evaluate_and_maybe_write()
 
     def _eval_blocker(self, blk: dict) -> bool:
         try:
@@ -165,15 +181,15 @@ class BlockersClear(BinarySensorEntity, RestoreEntity):
                 tpl = Template(tpl_text, self.hass)
                 res = tpl.async_render(variables={})
                 cond_ok = _to_bool(res)
-                
+
             invert = bool(blk.get(BLOCKER_INVERT, False))
             passed = cond_ok if invert else not cond_ok
-    
             return passed
         except Exception:
             return False
 
-    def _evaluate_and_write(self):
+    @callback
+    def _evaluate_and_maybe_write(self) -> None:
         results = []
 
         ms = self.hass.states.get(MASTER_SWITCH_ENTITY_ID)
@@ -197,17 +213,22 @@ class BlockersClear(BinarySensorEntity, RestoreEntity):
             })
             all_ok = all_ok and passed
 
-        attrs = {
+        new_attrs = {
             "blockers": results,
             "blocker_count": len(results),
             "failing_blockers": [r["name"] for r in results if not r["passed"]],
             "all_passed": all_ok,
         }
 
-        self._attr_is_on = all_ok
-        self._attr_extra_state_attributes = attrs
-        self.async_write_ha_state()
+        state_changed = (all_ok != self._attr_is_on)
+        attrs_changed = (new_attrs != self._attr_extra_state_attributes)
 
+        if not state_changed and not attrs_changed:
+            return
+
+        self._attr_is_on = all_ok
+        self._attr_extra_state_attributes = new_attrs
+        self.async_write_ha_state()
 
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
@@ -227,8 +248,5 @@ async def async_setup_entry(
                 ent_reg.async_remove(entity_id)
 
     sensors = [PlaylistEnabledSensor(hass, name) for name in playlists]
-
     sensors.append(BlockersClear(hass, entry))
-
     async_add_entities(sensors, True)
-
