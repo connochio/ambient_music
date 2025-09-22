@@ -2,7 +2,7 @@ import re
 import uuid
 import voluptuous as vol
 from homeassistant import config_entries
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from copy import deepcopy
 from urllib.parse import urlparse, parse_qs
 from homeassistant.helpers.selector import (
@@ -186,14 +186,13 @@ class AmbientMusicConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._abort_if_unique_id_configured()
         return self.async_create_entry(title="Ambient Music", data={})
 
-    @staticmethod
+    @callback
     def async_get_options_flow(config_entry):
-        return OptionsFlowHandler(config_entry)
+        return OptionsFlowHandler()
 
 class OptionsFlowHandler(config_entries.OptionsFlow):
 
-    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
-        self.config_entry = config_entry
+    def __init__(self) -> None:
         self._edit_target = None
         self._pending_blocker_type = None
         self._edit_blocker_name = None
