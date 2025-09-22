@@ -4,7 +4,6 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant, callback
 from copy import deepcopy
-from urllib.parse import urlparse, parse_qs
 from homeassistant.helpers.selector import (
     EntitySelector,
     EntitySelectorConfig,
