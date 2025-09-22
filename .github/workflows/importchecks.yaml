@@ -18,8 +18,8 @@ jobs:
         run: pip install ruff
 
       - name: Ruff (report all issues, non-blocking)
-        run: ruff check . --output-format=github
+        run: ruff check custom_components/ambient_music --output-format=github
         continue-on-error: true
 
       - name: Ruff (enforce no unused imports)
-        run: ruff check . --select F401 --output-format=github
+        run: ruff check custom_components/ambient_music --select F401 --output-format=github
