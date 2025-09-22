@@ -4,7 +4,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 
-from .const import DOMAIN, DEVICE_INFO
+from .const import DEVICE_INFO
 
 NUMBER_ENTITIES = [
     ("Default Volume", 0, 1, 0.01),
