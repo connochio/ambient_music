@@ -2,7 +2,11 @@ name: Validate with hassfest
 
 on:
   push:
+    paths-ignore:
+    - pyproject.toml
   pull_request:
+    paths-ignore:
+    - pyproject.toml
   schedule:
     - cron: "0 0 * * *"
 
