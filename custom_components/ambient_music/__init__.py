@@ -54,7 +54,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             fallback = _configured_players()
             if not fallback:
                 _LOGGER.warning(
-                    "Ambient Music service call without targets and no speakers configured in options"
+                    "Ambient Music service called without any target, and no media players configured in options"
                 )
             return fallback
         return ids
@@ -156,6 +156,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         }
     )
 
+    async def _set_repeat(entity_ids: Iterable[str], mode: str):
+        if not entity_ids:
+            return
+        if hass.services.has_service("media_player", "repeat_set"):
+            try:
+                await hass.services.async_call(
+                    "media_player",
+                    "repeat_set",
+                    {"entity_id": list(entity_ids), "repeat": str(mode)},
+                    blocking=True,
+                )
+            except Exception as err:
+                _LOGGER.debug("repeat_set failed for %s: %s", entity_ids, err)
+        else:
+            _LOGGER.debug("media_player.repeat_set service not available; skipping")
+
     async def svc_fade_volume(call: ServiceCall):
         targets = await _resolve_targets(call)
         target_volume = float(call.data["target_volume"])
@@ -202,6 +218,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         await _volume_set(targets, 0.0)
 
         await _play_playlist(targets, uri)
+        
+        await _set_repeat(targets, "all")
 
         target_vol = call.data.get("target_volume")
         if target_vol is None:
