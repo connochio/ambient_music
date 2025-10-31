@@ -94,6 +94,19 @@ def _extract_apple_id(text: str) -> str:
 
     return last if _APPLE_ID_RE.fullmatch(last or "") else ""
 
+def _extract_any_playlist_id(text: str) -> str:
+    for fn in (
+        _extract_spotify_id,
+        _extract_ytm_id,
+        _extract_local_id,
+        _extract_tidal_id,
+        _extract_apple_id,
+    ):
+        pid = fn(text)
+        if pid:
+            return pid
+    return ""
+
 def _parse_playlist_input(text: str) -> tuple[str, str] | None:
     if not text:
         return None
@@ -337,10 +350,10 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
 
         if user_input is not None:
             raw = str(user_input.get(CONF_ID, "")).strip()
-            sid = _extract_spotify_id(raw)
+            editid = _extract_any_playlist_id(raw)
 
             errors = {}
-            if not sid:
+            if not editid:
                 errors[CONF_ID] = "invalid_playlist_id"
 
             if errors:
@@ -351,7 +364,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                 )
 
             new_map = dict(playlist_map)
-            new_map[old_name] = sid
+            new_map[old_name] = editid
             options = {
                 CONF_MEDIA_PLAYERS: list(players),
                 CONF_PLAYLISTS: new_map,
