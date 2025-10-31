@@ -23,6 +23,8 @@ def _to_playlist_uri(stored_id: str) -> tuple[str, str]:
         return ("local", f"library://playlist/{stored_id}")
     if len(stored_id) == 36:
         return ("tidal", f"tidal://playlist/{stored_id}")
+    if len(stored_id) == 35:
+        return ("apple", f"apple_music://playlist/{stored_id}")
     return ("", "")
 
 async def async_setup_entry(

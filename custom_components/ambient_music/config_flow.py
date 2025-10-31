@@ -38,6 +38,7 @@ _SPOTIFY_ID_RE = re.compile(r"^[A-Za-z0-9]{22}$")
 _YTUBE_ID_RE = re.compile(r"^[A-Za-z0-9_-]{34}$")
 _LOCAL_ID_RE = re.compile(r"[0-9]{1,3}$")
 _TIDAL_ID_RE = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
+_APPLE_ID_RE = re.compile(r"^pl\.[A-Za-z0-9]{32}$")
 
 def _extract_spotify_id(text: str) -> str:
     if not text:
@@ -75,6 +76,24 @@ def _extract_tidal_id(text: str) -> str:
     m = re.search(r"(?:tidal://playlist/|(?:https?://)?(?:www\.)?tidal\.com/playlist/)([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})", s, flags=re.IGNORECASE,)
     return m.group(1) if (m and _TIDAL_ID_RE.fullmatch(m.group(1))) else ""
 
+def _extract_apple_id(text: str) -> str:
+    if not text:
+        return ""
+    s = str(text).strip()
+    if _APPLE_ID_RE.fullmatch(s):
+        return s
+    m = re.match(r"^(?:https?://)?([^/]+)(/.*)?$", s, flags=re.IGNORECASE)
+    if not m:
+        return ""
+    host = m.group(1).lower()
+    path = (m.group(2) or "")
+    if host != "music.apple.com":
+        return ""
+    path = path.split("?", 1)[0].split("#", 1)[0]
+    last = path.rstrip("/").split("/")[-1] if path else ""
+
+    return last if _APPLE_ID_RE.fullmatch(last or "") else ""
+
 def _parse_playlist_input(text: str) -> tuple[str, str] | None:
     if not text:
         return None
@@ -92,6 +111,9 @@ def _parse_playlist_input(text: str) -> tuple[str, str] | None:
     if "tidal" in s or "tidal://" in s:
         sid = _extract_tidal_id(s)
         return ("tidal", sid) if sid else None
+    if "apple" in s or "apple_music://" in s:
+        aid = _extract_apple_id(s)
+        return ("apple", aid) if aid else None
 
     if _SPOTIFY_ID_RE.fullmatch(s):
         return ("spotify", s)
@@ -101,6 +123,8 @@ def _parse_playlist_input(text: str) -> tuple[str, str] | None:
         return ("local", s)
     if _TIDAL_ID_RE.fullmatch(s):
         return ("tidal", s)
+    if _APPLE_ID_RE.fullmatch(s):
+        return ("apple", s)
 
     return None
 
