@@ -37,6 +37,7 @@ except ImportError:
 _SPOTIFY_ID_RE = re.compile(r"^[A-Za-z0-9]{22}$")
 _YTUBE_ID_RE = re.compile(r"^[A-Za-z0-9_-]{34}$")
 _LOCAL_ID_RE = re.compile(r"[0-9]{1,3}$")
+_TIDAL_ID_RE = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
 
 def _extract_spotify_id(text: str) -> str:
     if not text:
@@ -44,14 +45,14 @@ def _extract_spotify_id(text: str) -> str:
     s = text.strip()
     if _SPOTIFY_ID_RE.fullmatch(s):
         return s
-    m = re.search(r"(?:spotify:playlist:|open\.spotify\.com/playlist/)([A-Za-z0-9]{22})", s)
+    m = re.search(r"(?:spotify:playlist:|open\.spotify\.com/playlist/|spotify://playlist/)([A-Za-z0-9]{22})", s, flags=re.IGNORECASE,)
     return m.group(1) if m else ""
 
 def _extract_ytm_id(text: str) -> str:
     if not text:
         return ""
     s = text.strip()
-    m = re.search(r"(?:list=|youtube:playlist:|ytmusic://playlist/)([A-Za-z0-9_-]{34})", s)
+    m = re.search(r"(?:list=|youtube:playlist:|ytmusic://playlist/)([A-Za-z0-9_-]{34})", s, flags=re.IGNORECASE,)
     if m:
         s = m.group(1)
     return s if _YTUBE_ID_RE.fullmatch(s) else ""
@@ -60,17 +61,26 @@ def _extract_local_id(text: str) -> str:
     if not text:
         return ""
     s = text.strip()
-    m = re.search(r"(?:media-source://mass/playlists/|library://playlist/)([0-9]{1,3})", s)
+    m = re.search(r"(?:media-source://mass/playlists/|library://playlist/)([0-9]{1,3})", s, flags=re.IGNORECASE,)
     if m:
         s = m.group(1)
     return s if _LOCAL_ID_RE.fullmatch(s) else ""
+
+def _extract_tidal_id(text: str) -> str:
+    if not text:
+        return ""
+    s = text.strip()
+    if _TIDAL_ID_RE.fullmatch(s):
+        return s
+    m = re.search(r"(?:tidal://playlist/|(?:https?://)?(?:www\.)?tidal\.com/playlist/)([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})", s, flags=re.IGNORECASE,)
+    return m.group(1) if (m and _TIDAL_ID_RE.fullmatch(m.group(1))) else ""
 
 def _parse_playlist_input(text: str) -> tuple[str, str] | None:
     if not text:
         return None
     s = text.strip()
 
-    if "spotify" in s:
+    if "spotify" in s or "spotify://" in s:
         sid = _extract_spotify_id(s)
         return ("spotify", sid) if sid else None
     if "youtube" in s or "music.youtube.com" in s or "ytmusic://" in s or "list=" in s:
@@ -79,6 +89,9 @@ def _parse_playlist_input(text: str) -> tuple[str, str] | None:
     if "library" in s or "media-source" in s:
         lid = _extract_local_id(s)
         return ("local", lid) if lid else None
+    if "tidal" in s or "tidal://" in s:
+        sid = _extract_tidal_id(s)
+        return ("tidal", sid) if sid else None
 
     if _SPOTIFY_ID_RE.fullmatch(s):
         return ("spotify", s)
@@ -86,6 +99,8 @@ def _parse_playlist_input(text: str) -> tuple[str, str] | None:
         return ("youtube", s)
     if _LOCAL_ID_RE.fullmatch(s):
         return ("local", s)
+    if _TIDAL_ID_RE.fullmatch(s):
+        return ("tidal", s)
 
     return None
 
