@@ -172,6 +172,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         else:
             _LOGGER.debug("media_player.repeat_set service not available; skipping")
 
+    async def _set_shuffle(entity_ids: Iterable[str], shuffle: bool = True):
+        if not entity_ids:
+            return
+        try:
+            await hass.services.async_call(
+                "media_player",
+                "shuffle_set",
+                {"entity_id": list(entity_ids), "shuffle": bool(shuffle)},
+                blocking=True,
+            )
+        except Exception as err:
+            _LOGGER.debug("shuffle_set failed for %s: %s", entity_ids, err)
+
     async def svc_fade_volume(call: ServiceCall):
         targets = await _resolve_targets(call)
         target_volume = float(call.data["target_volume"])
@@ -220,6 +233,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         await _play_playlist(targets, uri)
         
         await _set_repeat(targets, "all")
+        
+        await _set_shuffle(targets, True)
 
         target_vol = call.data.get("target_volume")
         if target_vol is None:
