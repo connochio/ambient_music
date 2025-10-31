@@ -16,6 +16,8 @@ A Home Assistant integration for playing ambient music on supported players via 
 > - Spotify
 > - Youtube Music
 > - Local Files via Music Assistant
+> - Tidal
+> - Apple Music
 >
 > We are working on adding more with each release, but if you would like to request a specific provider please log a GitHub Issue and tag it as a feature request.
 
