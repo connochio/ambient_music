@@ -39,6 +39,8 @@ The currently supported music providers are:
 - Spotify
 - Youtube Music
 - Music Assistant Local Files
+- Tidal
+- Apple Music
 
 When configured, playlists will fade out and back in from each-other seamlessly when changed, and fade in and out when Ambient Music is turned on or off.  
 
