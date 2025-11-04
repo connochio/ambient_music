@@ -37,7 +37,8 @@ async def async_setup_entry(
 
 class AmbientMusicPlaylistSelect(SelectEntity, RestoreEntity):
     _attr_should_poll = False
-    _attr_name = "Ambient Music Playlists"
+    _attr_has_entity_name = True
+    _attr_translation_key = "playlists"
     _attr_unique_id = "ambient_music_playlists"
 
     def __init__(self, options: list[str], mapping: dict[str, str]):
