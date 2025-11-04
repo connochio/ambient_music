@@ -100,7 +100,7 @@
   "entity": {
     "binary_sensor": {
       "blockers_clear": {
-        "name": "Ambient Music Blocker Status",
+        "name": "Blocker Status",
         "state": {
           "on": "Clear",
           "off": "Blocked"
