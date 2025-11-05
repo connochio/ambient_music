@@ -1,11 +1,16 @@
 {
   "title": "Ambient Music",
   "config": {
-    "error": {
-      "unknown_blocker": "The selected blocker does not exist."
+    "step": {
+      "user": {
+        "title": "Ambient Music",
+        "description": "Ambient Music is already set up and does not require additional configuration."
+      }
+    },
+    "abort": {
+      "already_configured": "Ambient Music is already configured."
     }
   },
-
   "options": {
     "step": {
       "init": {
@@ -94,6 +99,9 @@
       "invalid_playlist_id": "This doesn’t look like a valid playlist ID or URL.",
       "no_blockers": "There are no blockers to edit.",
       "unknown_blocker": "The selected blocker does not exist."
+    },
+    "abort": {
+      "already_configured": "Ambient Music is already configured."
     }
   },
 
