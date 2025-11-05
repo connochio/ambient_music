@@ -88,7 +88,8 @@ class PlaylistEnabledSensor(BinarySensorEntity, RestoreEntity):
 class BlockersClear(BinarySensorEntity, RestoreEntity):
 
     _attr_should_poll = False
-    _attr_name = "Ambient Music Blockers Clear"
+    _attr_has_entity_name = True
+    _attr_translation_key = "blockers_clear"
     _attr_unique_id = "ambient_music_blockers_clear"
 
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry):
