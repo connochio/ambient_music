@@ -7,7 +7,8 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from .const import DEVICE_INFO
 
 class AmbientMusicEnableSwitch(SwitchEntity, RestoreEntity):
-    _attr_name = "Ambient Music Master Enable"
+    _attr_has_entity_name = True
+    _attr_translation_key = "master_enable"
     _attr_unique_id = "ambient_music_master_enable"
 
     def __init__(self, hass: HomeAssistant):

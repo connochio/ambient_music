@@ -21,6 +21,10 @@ def _to_playlist_uri(stored_id: str) -> tuple[str, str]:
         return ("spotify", f"spotify:playlist:{stored_id}")
     if len(stored_id) < 4:
         return ("local", f"library://playlist/{stored_id}")
+    if len(stored_id) == 36:
+        return ("tidal", f"tidal://playlist/{stored_id}")
+    if len(stored_id) == 35:
+        return ("apple", f"apple_music://playlist/{stored_id}")
     return ("", "")
 
 async def async_setup_entry(
@@ -33,7 +37,8 @@ async def async_setup_entry(
 
 class AmbientMusicPlaylistSelect(SelectEntity, RestoreEntity):
     _attr_should_poll = False
-    _attr_name = "Ambient Music Playlists"
+    _attr_has_entity_name = True
+    _attr_translation_key = "playlists"
     _attr_unique_id = "ambient_music_playlists"
 
     def __init__(self, options: list[str], mapping: dict[str, str]):

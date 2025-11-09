@@ -1,0 +1,221 @@
+{
+  "title": "Ambient Music",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Ambient Music",
+        "description": "Ambient Music is already set up and does not require additional configuration."
+      }
+    },
+    "abort": {
+      "already_configured": "Ambient Music is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Ambient Music options",
+        "description": "Manage players, playlists, and blockers.",
+        "menu_options": {
+          "media_players": "Media players",
+          "add_playlist": "Add playlist",
+          "manage_playlists": "Manage playlists",
+          "manage_blockers": "Manage blockers"
+        }
+      },
+      "media_players": {
+        "title": "Media players",
+        "description": "Select the media players Ambient Music will use to play media.",
+        "data": {
+          "media_players": "Media players"
+        }
+      },
+      "manage_playlists": {
+        "title": "Playlists",
+        "description": "Add, edit, or remove playlists."
+      },
+      "add_playlist": {
+        "title": "Add playlist",
+        "description": "Give the playlist a name and paste its ID or URL.",
+        "data": {
+          "name": "Playlist name",
+          "playlist_id": "Playlist ID or URL"
+        }
+      },
+      "edit_playlist": {
+        "title": "Edit playlist",
+        "description": "Update the playlist ID or URL for this name",
+        "data": {
+          "name": "Playlist name",
+          "playlist_id": "Playlist ID or URL"
+        }
+      },
+      "remove_playlists": {
+        "title": "Remove playlists",
+        "description": "Choose one or more playlists to remove.",
+        "data": {
+          "playlists": "Playlists"
+        }
+      },
+      "manage_blockers": {
+        "title": "Blockers",
+        "description": "Add or edit conditions that stop Ambient Music.",
+        "menu_options": {
+          "add_blocker": "Add blocker",
+          "edit_blocker_choose": "Edit blocker",
+          "remove_blockers": "Remove blockers"
+        }
+      },
+      "add_blocker": {
+        "title": "Add blocker",
+        "description": "Choose the type of blocker."
+      },
+      "add_blocker_details": {
+        "title": "Blocker details",
+        "description": "Configure the new blocker."
+      },
+      "edit_blocker_choose": {
+        "title": "Edit blocker",
+        "description": "Pick a blocker to edit.",
+        "data": {
+          "name": "Blocker"
+        }
+      },
+      "edit_blocker": {
+        "title": "Edit blocker",
+        "description": "Update the blocker settings."
+      },
+      "remove_blockers": {
+        "title": "Remove blockers",
+        "description": "Choose one or more blockers to remove.",
+        "data": {
+          "names": "Blockers"
+        }
+      }
+    },
+    "error": {
+      "required": "This field is required.",
+      "already_configured": "An item with this name already exists.",
+      "invalid_playlist_id": "This doesn’t look like a valid playlist ID or URL.",
+      "no_blockers": "There are no blockers to edit.",
+      "unknown_blocker": "The selected blocker does not exist."
+    },
+    "abort": {
+      "already_configured": "Ambient Music is already configured."
+    }
+  },
+
+  "entity": {
+    "binary_sensor": {
+      "blockers_clear": {
+        "name": "Blocker Status",
+        "state": {
+          "on": "Clear",
+          "off": "Blocked"
+        }
+      }
+    },
+    "number": {
+      "default_volume": {
+        "name": "Default Volume"
+      },
+      "playlist_switch_wait_seconds": {
+        "name": "Playlist Switchover Wait Time"
+      },
+      "previous_volume": {
+        "name": "Previous Volume"
+      },
+      "volume_fade_down_seconds": {
+        "name": "Volume Fade Down Time"
+      },
+      "volume_fade_up_seconds": {
+        "name": "Volume Fade Up Time"
+      }
+    },
+    "switch": {
+      "master_enable": {
+        "name": "Master Enable"
+      }
+    },
+    "select": {
+      "playlists": {
+        "name": "Playlists"
+      }
+    }
+  },
+
+  "services": {
+    "pause_for_switchover": {
+      "name": "Pause for switchover",
+      "description": "Fade volume down to 0 using Ambient Music settings and pause playback.",
+      "fields": {
+        "entity_id": {
+          "name": "Speakers (override, optional)",
+          "description": "Leave empty to use the speakers configured within Ambient Music"
+        },
+        "blockers_clear": {
+          "name": "Require blockers to be clear",
+          "description": "If true, only run when Ambient Music blockers are clear."
+        }
+      }
+    },
+    "play_current_playlist": {
+      "name": "Play current playlist",
+      "description": "Start the selected playlist at volume 0, then fade up.",
+      "fields": {
+        "entity_id": {
+          "name": "Speakers (override, optional)",
+          "description": "Leave empty to use the speakers configured within Ambient Music"
+        },
+        "blockers_clear": {
+          "name": "Require blockers to be clear",
+          "description": "If true, only run when Ambient Music blockers are clear."
+        },
+        "fade_up_duration": {
+          "name": "Fade-up duration (seconds)",
+          "description": "Overrides the helper value if provided."
+        },
+        "target_volume": {
+          "name": "Target volume (0.0–1.0)",
+          "description": "Overrides the helper value if provided."
+        },
+        "curve": {
+          "name": "Fade curve",
+          "description": "Fade curve to use for fade-up."
+        }
+      }
+    },
+    "stop_playing": {
+      "name": "Stop playing",
+      "description": "Fade volume down to 0 using Ambient Music settings and pause playback.",
+      "fields": {
+        "entity_id": {
+          "name": "Speakers (override, optional)",
+          "description": "Leave empty to use the speakers configured within Ambient Music"
+        }
+      }
+    },
+    "fade_volume": {
+      "name": "Fade volume",
+      "description": "Fade a media player’s volume to a target over a duration with a chosen curve.",
+      "fields": {
+        "entity_id": {
+          "name": "Speakers (override, optional)",
+          "description": "Leave empty to use the speakers configured within Ambient Music"
+        },
+        "target_volume": {
+          "name": "Target volume (0.0–1.0)",
+          "description": "Final volume level between 0.0 and 1.0"
+        },
+        "duration": {
+          "name": "Duration (seconds)",
+          "description": "How long the fade should take."
+        },
+        "curve": {
+          "name": "Fade curve",
+          "description": "Fade curve to use (logarithmic, bezier, linear)."
+        }
+      }
+    }
+  }
+}

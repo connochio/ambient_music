@@ -16,6 +16,9 @@ A Home Assistant integration for playing ambient music on supported players via 
 > - Spotify
 > - Youtube Music
 > - Local Files via Music Assistant
+> - Plex Media Server (via MASS)
+> - Tidal
+> - Apple Music
 >
 > We are working on adding more with each release, but if you would like to request a specific provider please log a GitHub Issue and tag it as a feature request.
 
@@ -37,6 +40,9 @@ The currently supported music providers are:
 - Spotify
 - Youtube Music
 - Music Assistant Local Files
+- Plex Media Server (via MASS)
+- Tidal
+- Apple Music
 
 When configured, playlists will fade out and back in from each-other seamlessly when changed, and fade in and out when Ambient Music is turned on or off.  
 

@@ -7,6 +7,7 @@ from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.service import async_extract_entity_ids
+from homeassistant.const import ATTR_ENTITY_ID
 import logging
 _LOGGER = logging.getLogger(__name__)
 
@@ -150,6 +151,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     fade_schema = vol.Schema(
         {
+            vol.Optional(ATTR_ENTITY_ID): cv.entity_ids,
             vol.Required("target_volume"): vol.Coerce(float),
             vol.Required("duration"): vol.Coerce(float),
             vol.Optional("curve", default="logarithmic"): vol.In(["logarithmic", "bezier", "linear"]),
@@ -172,6 +174,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         else:
             _LOGGER.debug("media_player.repeat_set service not available; skipping")
 
+    async def _set_shuffle(entity_ids: Iterable[str], shuffle: bool = True):
+        if not entity_ids:
+            return
+        try:
+            await hass.services.async_call(
+                "media_player",
+                "shuffle_set",
+                {"entity_id": list(entity_ids), "shuffle": bool(shuffle)},
+                blocking=True,
+            )
+        except Exception as err:
+            _LOGGER.debug("shuffle_set failed for %s: %s", entity_ids, err)
+
     async def svc_fade_volume(call: ServiceCall):
         targets = await _resolve_targets(call)
         target_volume = float(call.data["target_volume"])
@@ -181,7 +196,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.services.async_register(DOMAIN, "fade_volume", svc_fade_volume, schema=fade_schema)
 
-    pause_schema = vol.Schema({vol.Optional("blockers_cleared", default=True): cv.boolean})
+    pause_schema = vol.Schema(
+        {
+            vol.Optional(ATTR_ENTITY_ID): cv.entity_ids,
+            vol.Optional("blockers_cleared", default=True): cv.boolean,
+        }
+    )
 
     async def svc_pause_for_switchover(call: ServiceCall):
         if call.data.get("blockers_cleared", True) and not _blockers_clear():
@@ -196,6 +216,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     play_schema = vol.Schema(
         {
+            vol.Optional(ATTR_ENTITY_ID): cv.entity_ids,
             vol.Optional("blockers_cleared", default=True): cv.boolean,
             vol.Optional("fade_up_duration"): vol.Coerce(float),
             vol.Optional("target_volume"): vol.Coerce(float),
@@ -220,6 +241,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         await _play_playlist(targets, uri)
         
         await _set_repeat(targets, "all")
+        
+        await _set_shuffle(targets, True)
 
         target_vol = call.data.get("target_volume")
         if target_vol is None:
@@ -235,7 +258,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.services.async_register(DOMAIN, "play_current_playlist", svc_play_current_playlist, schema=play_schema)
 
-    stop_schema = vol.Schema({})
+    stop_schema = vol.Schema(
+        {
+            vol.Optional(ATTR_ENTITY_ID): cv.entity_ids,
+        }
+    )
 
     async def svc_stop_playing(call: ServiceCall):
         targets = await _resolve_targets(call)
