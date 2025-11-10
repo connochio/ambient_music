@@ -8,7 +8,7 @@
 A Home Assistant integration for playing ambient music on supported players via Music Assistant.
 
 > [!IMPORTANT]
-> This integration is intended to be used alongside Music Assistant, and may not work correctly without it.
+> This integration relies on Music Assistant, and may not work correctly without it.
 
 > [!TIP]
 > Whilst this integration is quite new, only some providers are currently supported.  
