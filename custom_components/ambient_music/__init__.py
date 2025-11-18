@@ -36,7 +36,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     async def _resolve_targets(call: ServiceCall) -> list[str]:
         try:
-            ids_from_target = await async_extract_entity_ids(hass, call)
+            ids_from_target = await async_extract_entity_ids(call)
         except Exception:
             ids_from_target = set()
         ids = list(ids_from_target)
