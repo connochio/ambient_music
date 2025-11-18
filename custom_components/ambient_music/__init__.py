@@ -55,7 +55,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             fallback = _configured_players()
             if not fallback:
                 _LOGGER.warning(
-                    "Ambient Music service called without any target, and no media players configured in options"
+                    "Ambient Music service called without any target, and/or no media players are configured in options"
                 )
             return fallback
         return ids
@@ -86,6 +86,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     async def _pause(entity_ids: Iterable[str]):
         if not entity_ids:
+            _LOGGER.warning(
+                "Ambient Music service called without any target, and/or no media players are configured in options"
+            )
             return
         await hass.services.async_call(
             "media_player",
@@ -96,6 +99,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     async def _play_playlist(entity_ids: Iterable[str], uri: str):
         if not entity_ids or not uri:
+            _LOGGER.warning(
+                "Ambient Music service called without any target, no media players are configured in options, or a playlist uri was not given"
+            )
+            return
+        if hass.services.has_service("music_assistant", "play_media"):
+            await hass.services.async_call(
+                "music_assistant",
+                "play_media",
+                {
+                    "entity_id": list(entity_ids),
+                    "media_type": "playlist",
+                    "enqueue": "replace",
+                    "media_id": uri,
+                },
+                blocking=True,
+            )
             return
         if hass.services.has_service("mass", "play_media"):
             await hass.services.async_call(
@@ -160,6 +179,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     async def _set_repeat(entity_ids: Iterable[str], mode: str):
         if not entity_ids:
+            _LOGGER.warning(
+                "Ambient Music service called without any target, and/or no media players are configured in options"
+            )
             return
         if hass.services.has_service("media_player", "repeat_set"):
             try:
