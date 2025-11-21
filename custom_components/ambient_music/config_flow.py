@@ -101,7 +101,7 @@ def _extract_deezer_id(text: str) -> str:
     s = text.strip()
     if _DEEZER_ID_RE.fullmatch(s):
         return s
-    m = re.search(r"(?:(?:https?://)?(?:www\.)?deezer\.com)?:[a-zA-Z]{1,3}/)?playlist/|deezer://playlist/)([0-9]{7,12})", s, flags=re.IGNORECASE,)
+    m = re.search(r"(?:(?:https?://)?(?:www\.)?deezer\.com/(?:[a-zA-Z]{2,3}/)?playlist/|deezer://playlist/)([0-9]{7,12})", s, flags=re.IGNORECASE,)
     return m.group(1) if m else ""
 
 def _extract_any_playlist_id(text: str) -> str:
