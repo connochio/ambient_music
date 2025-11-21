@@ -256,7 +256,20 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                 "manage_blockers": "Manage Blockers",
                 "manage_playlists": "Manage Playlists",
                 "media_players": "Media Players",
+                "get_blueprints": "Get Automation Blueprints",
             },
+        )
+
+    async def async_step_get_blueprints(self, user_input=None):
+        if user_input is not None:
+            return await self.async_step_init()
+        
+        return self.async_show_form(
+            step_id="get_blueprints",
+            data_schema=vol.Schema({}),
+            description_placeholders={
+                "blueprint_link": "https://github.com/connochio/ambient_music_documentation/tree/main/Documentation/Blueprints"
+            }
         )
 
     async def async_step_media_players(self, user_input=None):
