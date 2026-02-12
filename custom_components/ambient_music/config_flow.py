@@ -30,10 +30,7 @@ from .const import (
     BLOCKER_TEMPLATE,
 )
 
-try:
-    from .const import CONF_PLAYLIST_ID as CONF_ID
-except ImportError:
-    from .const import CONF_SPOTIFY_ID as CONF_ID
+from .const import CONF_PLAYLIST_ID as CONF_ID
 
 _SPOTIFY_ID_RE = re.compile(r"^[A-Za-z0-9]{22}$")
 _YTUBE_ID_RE = re.compile(r"^[A-Za-z0-9_-]{34}$")
@@ -219,9 +216,6 @@ def _edit_choice_schema(names: list[str]) -> vol.Schema:
 
 def _readonly_name_and_id_schema(name: str, default_sid: str, default_radio_mode: bool = False) -> vol.Schema:
     return vol.Schema({
-        vol.Required("playlist_name", default=name): SelectSelector(
-            SelectSelectorConfig(options=[name], multiple=False, custom_value=False)
-        ),
         vol.Required(CONF_ID, default=default_sid): TextSelector(
             TextSelectorConfig(multiline=False)
         ),
@@ -387,17 +381,62 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                 errors={"base": "no_playlists"},
             )
 
+        return self.async_show_menu(
+            step_id="manage_playlists",
+            menu_options={
+                "choose_playlist_edit": "Edit Playlist",
+                "choose_playlist_remove": "Remove Playlist",
+            },
+        )
+
+    async def async_step_choose_playlist_edit(self, user_input=None):
+        _, playlist_map = _get_players_and_map(self.hass, self.config_entry)
+        names = list(playlist_map.keys())
+
         if user_input is not None:
-            action = user_input["action"]
-            chosen = user_input["playlist"]
-            if action == "Edit":
-                self._edit_target = chosen
-                return await self.async_step_edit_playlist()
-            return await self.async_step_remove_playlists()
+            self._edit_target = user_input["playlist"]
+            return await self.async_step_edit_playlist()
 
         return self.async_show_form(
-            step_id="manage_playlists",
-            data_schema=_edit_choice_schema(names),
+            step_id="choose_playlist_edit",
+            data_schema=vol.Schema({
+                vol.Required("playlist"): SelectSelector(
+                    SelectSelectorConfig(
+                        options=names,
+                        multiple=False,
+                        custom_value=False,
+                    )
+                ),
+            }),
+        )
+
+    async def async_step_choose_playlist_remove(self, user_input=None):
+        _, playlist_map = _get_players_and_map(self.hass, self.config_entry)
+        names = list(playlist_map.keys())
+
+        if user_input is not None:
+            to_remove = set(user_input.get("playlists", []))
+            new_map = {k: v for k, v in playlist_map.items() if k not in to_remove}
+            
+            players, _ = _get_players_and_map(self.hass, self.config_entry)
+            options = {
+                CONF_MEDIA_PLAYERS: list(players),
+                CONF_PLAYLISTS: new_map,
+                CONF_BLOCKERS: _get_blockers(self.config_entry),
+            }
+            return self.async_create_entry(title="", data=options)
+
+        return self.async_show_form(
+            step_id="choose_playlist_remove",
+            data_schema=vol.Schema({
+                vol.Required("playlists", default=[]): SelectSelector(
+                    SelectSelectorConfig(
+                        options=names,
+                        multiple=True,
+                        custom_value=False,
+                    )
+                ),
+            }),
         )
 
     async def async_step_edit_playlist(self, user_input=None):
@@ -420,6 +459,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                 return self.async_show_form(
                     step_id="edit_playlist",
                     data_schema=_readonly_name_and_id_schema(old_name, raw, default_radio_mode=radio_mode),
+                    description_placeholders={"playlist_name": old_name},
                     errors=errors,
                 )
 
@@ -438,6 +478,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
         return self.async_show_form(
             step_id="edit_playlist",
             data_schema=_readonly_name_and_id_schema(old_name, old_id, default_radio_mode=old_radio_mode),
+            description_placeholders={"playlist_name": old_name},
         )
 
     async def async_step_remove_playlists(self, user_input=None):
