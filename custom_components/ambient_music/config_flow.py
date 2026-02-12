@@ -39,6 +39,7 @@ _YTUBE_ID_RE = re.compile(r"^[A-Za-z0-9_-]{34}$")
 _LOCAL_ID_RE = re.compile(r"[0-9]{1,3}$")
 _TIDAL_ID_RE = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
 _APPLE_ID_RE = re.compile(r"^pl\.[A-Za-z0-9]{32}$")
+_DEEZER_ID_RE = re.compile(r"[0-9{7,12}]$")
 
 def _extract_spotify_id(text: str) -> str:
     if not text:
@@ -94,6 +95,15 @@ def _extract_apple_id(text: str) -> str:
 
     return last if _APPLE_ID_RE.fullmatch(last or "") else ""
 
+def _extract_deezer_id(text: str) -> str:
+    if not text:
+        return ""
+    s = text.strip()
+    if _DEEZER_ID_RE.fullmatch(s):
+        return s
+    m = re.search(r"(?:(?:https?://)?(?:www\.)?deezer\.com/(?:[a-zA-Z]{2,3}/)?playlist/|deezer://playlist/)([0-9]{7,12})", s, flags=re.IGNORECASE,)
+    return m.group(1) if m else ""
+
 def _extract_any_playlist_id(text: str) -> str:
     for fn in (
         _extract_spotify_id,
@@ -101,6 +111,7 @@ def _extract_any_playlist_id(text: str) -> str:
         _extract_local_id,
         _extract_tidal_id,
         _extract_apple_id,
+        _extract_deezer_id,
     ):
         pid = fn(text)
         if pid:
@@ -127,6 +138,9 @@ def _parse_playlist_input(text: str) -> tuple[str, str] | None:
     if "apple" in s or "apple_music://" in s:
         aid = _extract_apple_id(s)
         return ("apple", aid) if aid else None
+    if "deezer" in s or "deezer://" in s:
+        did = _extract_deezer_id(s)
+        return ("deezer", did) if did else None
 
     if _SPOTIFY_ID_RE.fullmatch(s):
         return ("spotify", s)
@@ -138,6 +152,8 @@ def _parse_playlist_input(text: str) -> tuple[str, str] | None:
         return ("tidal", s)
     if _APPLE_ID_RE.fullmatch(s):
         return ("apple", s)
+    if _DEEZER_ID_RE.fullmatch(s):
+        return ("deezer", s)
 
     return None
 
@@ -256,7 +272,20 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                 "manage_blockers": "Manage Blockers",
                 "manage_playlists": "Manage Playlists",
                 "media_players": "Media Players",
+                "get_blueprints": "Get Automation Blueprints",
             },
+        )
+
+    async def async_step_get_blueprints(self, user_input=None):
+        if user_input is not None:
+            return await self.async_step_init()
+        
+        return self.async_show_form(
+            step_id="get_blueprints",
+            data_schema=vol.Schema({}),
+            description_placeholders={
+                "blueprint_link": "https://github.com/connochio/ambient_music_documentation/tree/main/Documentation/Blueprints"
+            }
         )
 
     async def async_step_media_players(self, user_input=None):

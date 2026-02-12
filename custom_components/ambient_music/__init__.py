@@ -8,6 +8,7 @@ from homeassistant.helpers.typing import ConfigType
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.service import async_extract_entity_ids
 from homeassistant.const import ATTR_ENTITY_ID
+from async_timeout import timeout
 import logging
 _LOGGER = logging.getLogger(__name__)
 
@@ -36,7 +37,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     async def _resolve_targets(call: ServiceCall) -> list[str]:
         try:
-            ids_from_target = await async_extract_entity_ids(hass, call)
+            ids_from_target = await async_extract_entity_ids(call)
         except Exception:
             ids_from_target = set()
         ids = list(ids_from_target)
@@ -55,7 +56,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             fallback = _configured_players()
             if not fallback:
                 _LOGGER.warning(
-                    "Ambient Music service called without any target, and no media players configured in options"
+                    "Ambient Music service called without any target, and/or no media players are configured in options"
                 )
             return fallback
         return ids
@@ -86,6 +87,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     async def _pause(entity_ids: Iterable[str]):
         if not entity_ids:
+            _LOGGER.warning(
+                "Ambient Music service called without any target, and/or no media players are configured in options"
+            )
             return
         await hass.services.async_call(
             "media_player",
@@ -96,6 +100,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     async def _play_playlist(entity_ids: Iterable[str], uri: str):
         if not entity_ids or not uri:
+            _LOGGER.warning(
+                "Ambient Music service called without any target, no media players are configured in options, or a playlist uri was not given"
+            )
+            return
+        if hass.services.has_service("music_assistant", "play_media"):
+            await hass.services.async_call(
+                "music_assistant",
+                "play_media",
+                {
+                    "entity_id": list(entity_ids),
+                    "media_type": "playlist",
+                    "enqueue": "replace",
+                    "media_id": uri,
+                },
+                blocking=True,
+            )
             return
         if hass.services.has_service("mass", "play_media"):
             await hass.services.async_call(
@@ -160,6 +180,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     async def _set_repeat(entity_ids: Iterable[str], mode: str):
         if not entity_ids:
+            _LOGGER.warning(
+                "Ambient Music service called without any target, and/or no media players are configured in options"
+            )
             return
         if hass.services.has_service("media_player", "repeat_set"):
             try:
@@ -176,6 +199,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     async def _set_shuffle(entity_ids: Iterable[str], shuffle: bool = True):
         if not entity_ids:
+            _LOGGER.warning(
+                "Ambient Music service called without any target, and/or no media players are configured in options"
+            )
             return
         try:
             await hass.services.async_call(
@@ -187,12 +213,39 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         except Exception as err:
             _LOGGER.debug("shuffle_set failed for %s: %s", entity_ids, err)
 
+    async def _run_with_timeout(coro, *, description: str, timeout_seconds: float) -> None:
+        try:
+            async with timeout(timeout_seconds):
+                await coro
+        except asyncio.TimeoutError:
+            _LOGGER.warning(
+                "Timeout (%.1fs) while executing '%s' in ambient_music",
+                timeout_seconds,
+                description,
+            )
+        except Exception:
+            _LOGGER.exception(
+                "Unexpected error while executing '%s' in ambient_music", description
+            )
+
     async def svc_fade_volume(call: ServiceCall):
         targets = await _resolve_targets(call)
         target_volume = float(call.data["target_volume"])
         duration = float(call.data["duration"])
         curve = call.data.get("curve", "logarithmic")
-        await _fade_volume(targets, target_volume, duration, curve)
+
+        fade_timeout=duration + 10.0
+        
+        async def _fade() -> None:
+            await _fade_volume(targets, target_volume, duration, curve)
+
+        await _run_with_timeout(
+            _fade(),
+            description=(
+                f"svc_fade_volume to {target_volume} over {duration}s for {targets}"
+            ),
+            timeout_seconds=fade_timeout
+        )
 
     hass.services.async_register(DOMAIN, "fade_volume", svc_fade_volume, schema=fade_schema)
 
@@ -208,9 +261,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             return
         targets = await _resolve_targets(call)
         fade_down = _get_state_float("number.ambient_music_volume_fade_down_seconds", 5.0)
-        await _fade_volume(targets, 0.0, fade_down, "logarithmic")
-        await _volume_set(targets, 0.0)
-        await _pause(targets)
+
+        switchover_timeout = fade_down + 10.0
+
+        async def _switchover() ->None:
+            await _fade_volume(targets, 0.0, fade_down, "logarithmic")
+            await _volume_set(targets, 0.0)
+            await _pause(targets)
+
+        await _run_with_timeout(
+            _switchover(),
+            description=(
+                f"svc_pause_for_switchover playlist to volume 0 over {fade_down}s for {targets}"
+            ),
+            timeout_seconds=switchover_timeout
+        )
 
     hass.services.async_register(DOMAIN, "pause_for_switchover", svc_pause_for_switchover, schema=pause_schema)
 
@@ -229,20 +294,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             return
         targets = await _resolve_targets(call)
         if not targets:
+            _LOGGER.warning(
+                "Ambient Music service called without any target, and/or no media players are configured in options"
+            )
             return
 
         sel = hass.states.get("select.ambient_music_playlists")
         uri = sel and sel.attributes.get("current_playlist_uri")
         if not uri:
+            _LOGGER.warning(
+                "Ambient Music service called without any playlist ID"
+            )
             return
-
-        await _volume_set(targets, 0.0)
-
-        await _play_playlist(targets, uri)
-        
-        await _set_repeat(targets, "all")
-        
-        await _set_shuffle(targets, True)
 
         target_vol = call.data.get("target_volume")
         if target_vol is None:
@@ -254,7 +317,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         curve = call.data.get("curve", "logarithmic")
 
-        await _fade_volume(targets, float(target_vol), float(fade_up), curve)
+        play_timeout = fade_up + 10.0
+
+        async def _start_playing() -> None:
+            await _volume_set(targets, 0.0)
+            await _play_playlist(targets, uri)
+            await _set_repeat(targets, "all")
+            await _set_shuffle(targets, True)
+            await _fade_volume(targets, float(target_vol), float(fade_up), curve)
+
+        await _run_with_timeout(
+            _start_playing(),
+            description=(
+                f"svc_play_current_playlist (uri={uri}) to volume {target_vol} over {fade_up}s for {targets}"
+            ),
+            timeout_seconds=play_timeout
+        )
 
     hass.services.async_register(DOMAIN, "play_current_playlist", svc_play_current_playlist, schema=play_schema)
 
@@ -267,10 +345,25 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     async def svc_stop_playing(call: ServiceCall):
         targets = await _resolve_targets(call)
         if not targets:
+            _LOGGER.warning(
+                "Ambient Music service called without any target, and/or no media players are configured in options"
+            )
             return
         fade_down = _get_state_float("number.ambient_music_volume_fade_down_seconds", 5.0)
-        await _fade_volume(targets, 0.0, fade_down, "logarithmic")
-        await _pause(targets)
+
+        stop_timeout = fade_down + 10.0
+
+        async def _stop() -> None:
+            await _fade_volume(targets, 0.0, fade_down, "logarithmic")
+            await _pause(targets)
+
+        await _run_with_timeout(
+            _stop(),
+            description=(
+                f"svc_stop_playing playlist to volume 0 over {fade_down}s for {targets}"
+            ),
+            timeout_seconds=stop_timeout
+        )
 
     hass.services.async_register(DOMAIN, "stop_playing", svc_stop_playing, schema=stop_schema)
 

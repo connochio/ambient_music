@@ -25,6 +25,8 @@ def _to_playlist_uri(stored_id: str) -> tuple[str, str]:
         return ("tidal", f"tidal://playlist/{stored_id}")
     if len(stored_id) == 35:
         return ("apple", f"apple_music://playlist/{stored_id}")
+    if 7 <= len(stored_id) <= 12:
+        return ("deezer", f"deezer://playlist/{stored_id}")
     return ("", "")
 
 async def async_setup_entry(
