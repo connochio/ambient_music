@@ -43,14 +43,17 @@
         "description": "Give the playlist a name and paste its ID or URL.",
         "data": {
           "name": "Playlist name",
-          "playlist_id": "Playlist ID or URL"
+          "playlist_id": "Playlist ID or URL",
+          "radio_mode": "Radio Mode"
         }
       },
       "edit_playlist": {
         "title": "Edit Playlist",
         "description": "Update the playlist ID or URL for {playlist_name}.",
         "data": {
-          "playlist_id": "Playlist ID or URL"
+          "name": "Playlist name",
+          "playlist_id": "Playlist ID or URL",
+          "radio_mode": "Radio Mode"
         }
       },
       "choose_playlist_edit": {
