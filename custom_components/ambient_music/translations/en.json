@@ -32,7 +32,11 @@
       },
       "manage_playlists": {
         "title": "Playlists",
-        "description": "Add, edit, or remove playlists."
+        "description": "Add, edit, or remove playlists.",
+        "menu_options": {
+          "choose_playlist_edit": "Edit playlist",
+          "choose_playlist_remove": "Remove Playlist(s)"
+        }
       },
       "add_playlist": {
         "title": "Add playlist",
@@ -43,16 +47,22 @@
         }
       },
       "edit_playlist": {
-        "title": "Edit playlist",
-        "description": "Update the playlist ID or URL for this name",
+        "title": "Edit Playlist",
+        "description": "Update the playlist ID or URL for {playlist_name}.",
         "data": {
-          "name": "Playlist name",
           "playlist_id": "Playlist ID or URL"
         }
       },
-      "remove_playlists": {
-        "title": "Remove playlists",
-        "description": "Choose one or more playlists to remove.",
+      "choose_playlist_edit": {
+        "title": "Edit Playlist",
+        "description": "Select the playlist to edit.",
+        "data": {
+          "playlist": "Playlist"
+        }
+      },
+      "choose_playlist_remove": {
+        "title": "Remove Playlist(s)",
+        "description": "Select one or more playlists to remove.",
         "data": {
           "playlists": "Playlists"
         }
