@@ -29,10 +29,7 @@ from .const import (
     BLOCKER_TEMPLATE,
 )
 
-try:
-    from .const import CONF_PLAYLIST_ID as CONF_ID
-except ImportError:
-    from .const import CONF_SPOTIFY_ID as CONF_ID
+from .const import CONF_PLAYLIST_ID as CONF_ID
 
 _SPOTIFY_ID_RE = re.compile(r"^[A-Za-z0-9]{22}$")
 _YTUBE_ID_RE = re.compile(r"^[A-Za-z0-9_-]{34}$")
