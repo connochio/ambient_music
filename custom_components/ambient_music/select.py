@@ -87,7 +87,5 @@ class AmbientMusicPlaylistSelect(SelectEntity, RestoreEntity):
 
         attrs["current_playlist_id"] = current_cid
         attrs["current_playlist_uri"] = curr_uri
-        attrs["current_spotify_id"] = current_cid if curr_prov == "spotify" else ""
-        attrs["current_spotify_uri"] = curr_uri if curr_prov == "spotify" else ""
 
         return attrs
