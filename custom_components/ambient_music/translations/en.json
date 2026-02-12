@@ -35,7 +35,7 @@
         "description": "Add, edit, or remove playlists.",
         "menu_options": {
           "choose_playlist_edit": "Edit playlist",
-          "choose_playlist_remove": "Remove Playlist(s)"
+          "choose_playlist_remove": "Remove playlist(s)"
         }
       },
       "add_playlist": {
@@ -44,16 +44,16 @@
         "data": {
           "name": "Playlist name",
           "playlist_id": "Playlist ID or URL",
-          "radio_mode": "Radio Mode"
+          "radio_mode": "Enable radio mode for this playlist?"
         }
       },
       "edit_playlist": {
         "title": "Edit Playlist",
-        "description": "Update the playlist ID or URL for {playlist_name}.",
+        "description": "Update the playlist ID or URL for the playlist:\n\n{playlist_name}.",
         "data": {
           "name": "Playlist name",
           "playlist_id": "Playlist ID or URL",
-          "radio_mode": "Radio Mode"
+          "radio_mode": "Enable radio mode for this playlist?"
         }
       },
       "choose_playlist_edit": {
@@ -138,9 +138,6 @@
       },
       "playlist_switch_wait_seconds": {
         "name": "Playlist Switchover Wait Time"
-      },
-      "previous_volume": {
-        "name": "Previous Volume"
       },
       "volume_fade_down_seconds": {
         "name": "Volume Fade Down Time"

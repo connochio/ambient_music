@@ -6,6 +6,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.service import async_extract_entity_ids
 from homeassistant.const import ATTR_ENTITY_ID
 from async_timeout import timeout
@@ -29,6 +30,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         await hass.config_entries.async_reload(updated_entry.entry_id)
 
     entry.async_on_unload(entry.add_update_listener(_options_updated))
+
+    async def _cleanup_orphan_entity(_now=None):
+            ent_reg = er.async_get(hass)
+            old_entity_id = "number.ambient_music_previous_volume"
+
+            if ent_reg.async_get(old_entity_id):
+                _LOGGER.warning("Removing orphaned entity registry entry: %s", old_entity_id)
+                ent_reg.async_remove(old_entity_id)
+
+    hass.bus.async_listen_once("homeassistant_started", _cleanup_orphan_entity)
 
     def _configured_players() -> list[str]:
         opts = entry.options or {}

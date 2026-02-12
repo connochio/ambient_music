@@ -8,7 +8,6 @@ from .const import DEVICE_INFO
 
 NUMBER_ENTITIES = [
     ("default_volume", 0, 1, 0.01),
-    ("previous_volume", 0, 1, 0.01),
     ("playlist_switch_wait_seconds", 0, 20, 1),
     ("volume_fade_down_seconds", 0, 20, 1),
     ("volume_fade_up_seconds", 0, 20, 1),
@@ -22,7 +21,6 @@ class AmbientMusicNumber(NumberEntity, RestoreEntity):
     def __init__(self, key: str, min_val: float, max_val: float, step: float) -> None:
         self._attr_translation_key = key
         self._attr_unique_id = f"ambient_music_{key}"
-
         self._attr_native_min_value = float(min_val)
         self._attr_native_max_value = float(max_val)
         self._attr_native_step = float(step)
