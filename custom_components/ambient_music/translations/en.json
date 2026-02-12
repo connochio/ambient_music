@@ -94,7 +94,7 @@
       },
       "get_blueprints": {
           "title": "Get the Automation Blueprints",
-          "description": "Ambient Music requires some automations to function properly.\n\nThe full documentation for Ambient Music can be found [here](https://github.com/connochio/ambient_music_documentation/tree/main).\n\nIf you are looking for ready-made and downloadable blueprints for these automations, they can be found in the documentation [here](https://github.com/connochio/ambient_music_documentation/tree/main/Documentation/Blueprints)."
+          "description": "Ambient Music requires some automations to function properly.\n\nThe full documentation for Ambient Music can be found at github.com/connochio/ambient_music_documentation.\n\nIf you are looking for ready-made and downloadable blueprints for these automations, they can also be found in the documentation at github.com/connochio/ambient_music_documentation."
       }
     },
     "error": {
