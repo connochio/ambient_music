@@ -98,7 +98,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             blocking=True,
         )
 
-    async def _play_playlist(entity_ids: Iterable[str], uri: str):
+    async def _play_playlist(entity_ids: Iterable[str], uri: str, radio_mode: bool = False):
         if not entity_ids or not uri:
             _LOGGER.warning(
                 "Ambient Music service called without any target, no media players are configured in options, or a playlist uri was not given"
@@ -113,6 +113,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     "media_type": "playlist",
                     "enqueue": "replace",
                     "media_id": uri,
+                    "radio_mode": radio_mode,
                 },
                 blocking=True,
             )
@@ -126,6 +127,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     "media_type": "playlist",
                     "enqueue": "replace",
                     "media_id": uri,
+                    "radio_mode": radio_mode,
                 },
                 blocking=True,
             )
@@ -301,6 +303,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         sel = hass.states.get("select.ambient_music_playlists")
         uri = sel and sel.attributes.get("current_playlist_uri")
+        radio_mode = sel and sel.attributes.get("current_playlist_radio_mode", False)
         if not uri:
             _LOGGER.warning(
                 "Ambient Music service called without any playlist ID"
@@ -321,7 +324,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         async def _start_playing() -> None:
             await _volume_set(targets, 0.0)
-            await _play_playlist(targets, uri)
+            await _play_playlist(targets, uri, radio_mode=bool(radio_mode))
             await _set_repeat(targets, "all")
             await _set_shuffle(targets, True)
             await _fade_volume(targets, float(target_vol), float(fade_up), curve)

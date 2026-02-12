@@ -20,6 +20,7 @@ from .const import (
     CONF_MEDIA_PLAYERS,
     CONF_PLAYLISTS,
     CONF_BLOCKERS,
+    CONF_PLAYLIST_RADIO_MODE,
     BLOCKER_ID,
     BLOCKER_NAME,
     BLOCKER_TYPE,
@@ -160,21 +161,41 @@ def _parse_playlist_input(text: str) -> tuple[str, str] | None:
 def _get_players_and_map(hass: HomeAssistant, entry: config_entries.ConfigEntry):
     opts = entry.options or {}
     players = list(opts.get(CONF_MEDIA_PLAYERS, []) or [])
-    playlist_map = dict(opts.get(CONF_PLAYLISTS, {}) or {})
-    playlist_map = {str(k): str(v) for k, v in playlist_map.items()}
+    raw_playlist_map = dict(opts.get(CONF_PLAYLISTS, {}) or {})
+    
+    playlist_map = {}
+    for k, v in raw_playlist_map.items():
+        if isinstance(v, dict):
+            playlist_map[str(k)] = v
+        else:
+            playlist_map[str(k)] = {"id": str(v), CONF_PLAYLIST_RADIO_MODE: False}
+    
     return players, playlist_map
+
+def _playlist_to_id(playlist_data) -> str:
+    if isinstance(playlist_data, dict):
+        return playlist_data.get("id", "")
+    return str(playlist_data) if playlist_data else ""
+
+def _playlist_to_radio_mode(playlist_data) -> bool:
+    if isinstance(playlist_data, dict):
+        return bool(playlist_data.get(CONF_PLAYLIST_RADIO_MODE, False))
+    return False
 
 def _get_blockers(entry: config_entries.ConfigEntry) -> list[dict]:
     ls = entry.options.get(CONF_BLOCKERS, [])
     return deepcopy(ls) if isinstance(ls, list) else []
 
-def _add_schema(default_name: str = "", default_sid: str = "") -> vol.Schema:
+def _add_schema(default_name: str = "", default_sid: str = "", default_radio_mode: bool = False) -> vol.Schema:
     return vol.Schema({
         vol.Required("name", default=default_name): TextSelector(
             TextSelectorConfig(multiline=False)
         ),
         vol.Required(CONF_ID, default=default_sid): TextSelector(
             TextSelectorConfig(multiline=False)
+        ),
+        vol.Required(CONF_PLAYLIST_RADIO_MODE, default=default_radio_mode): BooleanSelector(
+            BooleanSelectorConfig()
         ),
     })
 
@@ -196,13 +217,16 @@ def _edit_choice_schema(names: list[str]) -> vol.Schema:
         ),
     })
 
-def _readonly_name_and_id_schema(name: str, default_sid: str) -> vol.Schema:
+def _readonly_name_and_id_schema(name: str, default_sid: str, default_radio_mode: bool = False) -> vol.Schema:
     return vol.Schema({
         vol.Required("playlist_name", default=name): SelectSelector(
             SelectSelectorConfig(options=[name], multiple=False, custom_value=False)
         ),
         vol.Required(CONF_ID, default=default_sid): TextSelector(
             TextSelectorConfig(multiline=False)
+        ),
+        vol.Required(CONF_PLAYLIST_RADIO_MODE, default=default_radio_mode): BooleanSelector(
+            BooleanSelectorConfig()
         ),
     })
 
@@ -315,6 +339,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
         if user_input is not None:
             name = str(user_input.get("name", "")).strip()
             raw = str(user_input.get(CONF_ID, "")).strip()
+            radio_mode = bool(user_input.get(CONF_PLAYLIST_RADIO_MODE, False))
 
             errors = {}
             if not name:
@@ -331,13 +356,16 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
             if errors:
                 return self.async_show_form(
                     step_id="add_playlist",
-                    data_schema=_add_schema(default_name=name, default_sid=raw),
+                    data_schema=_add_schema(default_name=name, default_sid=raw, default_radio_mode=radio_mode),
                     errors=errors,
                 )
 
             _, canonical_id = parsed
             new_map = dict(playlist_map)
-            new_map[name] = canonical_id
+            new_map[name] = {
+                "id": canonical_id,
+                CONF_PLAYLIST_RADIO_MODE: radio_mode,
+            }
 
             options = {
                 CONF_MEDIA_PLAYERS: players,
@@ -375,10 +403,13 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
     async def async_step_edit_playlist(self, user_input=None):
         players, playlist_map = _get_players_and_map(self.hass, self.config_entry)
         old_name = self._edit_target or ""
-        old_id = playlist_map.get(old_name, "")
+        old_data = playlist_map.get(old_name, {})
+        old_id = _playlist_to_id(old_data)
+        old_radio_mode = _playlist_to_radio_mode(old_data)
 
         if user_input is not None:
             raw = str(user_input.get(CONF_ID, "")).strip()
+            radio_mode = bool(user_input.get(CONF_PLAYLIST_RADIO_MODE, False))
             editid = _extract_any_playlist_id(raw)
 
             errors = {}
@@ -388,12 +419,15 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
             if errors:
                 return self.async_show_form(
                     step_id="edit_playlist",
-                    data_schema=_readonly_name_and_id_schema(old_name, raw),
+                    data_schema=_readonly_name_and_id_schema(old_name, raw, default_radio_mode=radio_mode),
                     errors=errors,
                 )
 
             new_map = dict(playlist_map)
-            new_map[old_name] = editid
+            new_map[old_name] = {
+                "id": editid,
+                CONF_PLAYLIST_RADIO_MODE: radio_mode,
+            }
             options = {
                 CONF_MEDIA_PLAYERS: list(players),
                 CONF_PLAYLISTS: new_map,
@@ -403,7 +437,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
 
         return self.async_show_form(
             step_id="edit_playlist",
-            data_schema=_readonly_name_and_id_schema(old_name, old_id),
+            data_schema=_readonly_name_and_id_schema(old_name, old_id, default_radio_mode=old_radio_mode),
         )
 
     async def async_step_remove_playlists(self, user_input=None):
