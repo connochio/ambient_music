@@ -14,6 +14,7 @@ import logging
 _LOGGER = logging.getLogger(__name__)
 
 from .const import DOMAIN, CONF_MEDIA_PLAYERS
+from .watchers import async_setup_watchers
 
 PLATFORMS = [
     "number", 
@@ -380,6 +381,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         )
 
     hass.services.async_register(DOMAIN, "stop_playing", svc_stop_playing, schema=stop_schema)
+
+    cleanup_watchers = await async_setup_watchers(
+        hass,
+        entry.entry_id,
+        svc_play_current_playlist,
+        svc_pause_for_switchover,
+        svc_stop_playing
+    )
+    entry.async_on_unload(cleanup_watchers)
 
     entry.async_on_unload(lambda: hass.services.async_remove(DOMAIN, "fade_volume"))
     entry.async_on_unload(lambda: hass.services.async_remove(DOMAIN, "pause_for_switchover"))
