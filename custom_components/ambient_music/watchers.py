@@ -19,7 +19,7 @@ async def async_setup_watchers(
     unsubscribe_blockers = async_track_state_change_event(
         hass,
         "binary_sensor.ambient_music_blockers_clear",
-        lambda event: _handle_blockers_change(hass, event, stop_handler, debouncer)
+        lambda event: _handle_blockers_change(hass, event, stop_handler, play_handler, debouncer)
     )
 
     unsubscribe_playlist = async_track_state_change_event(
@@ -35,7 +35,7 @@ async def async_setup_watchers(
     return cleanup
 
 @callback
-def _handle_blockers_change(hass: HomeAssistant, event, stop_handler: callable, debouncer):
+def _handle_blockers_change(hass: HomeAssistant, event, stop_handler: callable, play_handler: callable, debouncer):
     new_state = event.data.get("new_state")
     old_state = event.data.get("old_state")
 
@@ -46,6 +46,10 @@ def _handle_blockers_change(hass: HomeAssistant, event, stop_handler: callable, 
         _LOGGER.debug("Blockers activated, triggering stop via watcher")
         call = _WatcherServiceCall()
         hass.loop.create_task(stop_handler(call))
+    elif old_state.state == "off" and new_state.state == "on":
+        _LOGGER.debug("Blockers cleared, triggering play via watcher")
+        call = _WatcherServiceCall()
+        hass.loop.create_task(play_handler(call))
 
 @callback
 def _handle_playlist_change(hass: HomeAssistant, event, pause_handler: callable, play_handler: callable, debouncer):
