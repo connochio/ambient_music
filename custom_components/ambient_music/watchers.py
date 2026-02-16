@@ -13,18 +13,19 @@ async def async_setup_watchers(
     entry_id: str,
     play_handler: callable,
     pause_handler: callable,
-    stop_handler: callable
+    stop_handler: callable,
+    debouncer
 ):
     unsubscribe_blockers = async_track_state_change_event(
         hass,
         "binary_sensor.ambient_music_blockers_clear",
-        lambda event: _handle_blockers_change(hass, event, stop_handler)
+        lambda event: _handle_blockers_change(hass, event, stop_handler, debouncer)
     )
 
     unsubscribe_playlist = async_track_state_change_event(
         hass,
         "select.ambient_music_playlists",
-        lambda event: _handle_playlist_change(hass, event, pause_handler, play_handler)
+        lambda event: _handle_playlist_change(hass, event, pause_handler, play_handler, debouncer)
     )
 
     def cleanup():
@@ -34,7 +35,7 @@ async def async_setup_watchers(
     return cleanup
 
 @callback
-def _handle_blockers_change(hass: HomeAssistant, event, stop_handler: callable):
+def _handle_blockers_change(hass: HomeAssistant, event, stop_handler: callable, debouncer):
     new_state = event.data.get("new_state")
     old_state = event.data.get("old_state")
 
@@ -47,7 +48,7 @@ def _handle_blockers_change(hass: HomeAssistant, event, stop_handler: callable):
         hass.loop.create_task(stop_handler(call))
 
 @callback
-def _handle_playlist_change(hass: HomeAssistant, event, pause_handler: callable, play_handler: callable):
+def _handle_playlist_change(hass: HomeAssistant, event, pause_handler: callable, play_handler: callable, debouncer):
     new_state = event.data.get("new_state")
     old_state = event.data.get("old_state")
 
@@ -62,7 +63,13 @@ def _handle_playlist_change(hass: HomeAssistant, event, pause_handler: callable,
         call = _WatcherServiceCall()
         
         async def _switchover():
+            pause_debouncer_state_before = dict(debouncer.last_trigger_time)
             await pause_handler(call)
-            await play_handler(call)
+            pause_executed = debouncer.last_trigger_time.get("pause_for_switchover", 0) > pause_debouncer_state_before.get("pause_for_switchover", 0)
+            
+            if pause_executed:
+                await play_handler(call)
+            else:
+                _LOGGER.debug("Pause was debounced (automation likely already paused), skipping immediate play")
         
         hass.loop.create_task(_switchover())

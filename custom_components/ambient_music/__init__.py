@@ -1,5 +1,6 @@
 import asyncio
 from typing import Iterable
+import time
 
 import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
@@ -23,10 +24,28 @@ PLATFORMS = [
     "switch"
 ]
 
+class _ServiceDebouncer:
+    def __init__(self, cooldown_seconds: float = 2.0):
+        self.cooldown_seconds = cooldown_seconds
+        self.last_trigger_time = {}
+    
+    def should_execute(self, service_name: str) -> bool:
+        current_time = time.time()
+        last_time = self.last_trigger_time.get(service_name, 0)
+        
+        if current_time - last_time >= self.cooldown_seconds:
+            self.last_trigger_time[service_name] = current_time
+            return True
+        
+        _LOGGER.debug(f"Service '{service_name}' debounced, called too recently")
+        return False
+
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     return True
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    service_debouncer = _ServiceDebouncer()
+    
     async def _options_updated(hass: HomeAssistant, updated_entry: ConfigEntry):
         await hass.config_entries.async_reload(updated_entry.entry_id)
 
@@ -271,6 +290,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
 
     async def svc_pause_for_switchover(call: ServiceCall):
+        if not service_debouncer.should_execute("pause_for_switchover"):
+            return
         if call.data.get("blockers_cleared", True) and not _blockers_clear():
             return
         targets = await _resolve_targets(call)
@@ -304,6 +325,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
 
     async def svc_play_current_playlist(call: ServiceCall):
+        if not service_debouncer.should_execute("play_current_playlist"):
+            return
         if call.data.get("blockers_cleared", True) and not _blockers_clear():
             return
         targets = await _resolve_targets(call)
@@ -332,7 +355,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         curve = call.data.get("curve", "logarithmic")
 
-        play_timeout = fade_up + 10.0
+        play_timeout = fade_up + 20.0
 
         async def _start_playing() -> None:
             await _volume_set(targets, 0.0)
@@ -358,6 +381,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
 
     async def svc_stop_playing(call: ServiceCall):
+        if not service_debouncer.should_execute("stop_playing"):
+            return
         targets = await _resolve_targets(call)
         if not targets:
             _LOGGER.warning(
@@ -387,7 +412,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         entry.entry_id,
         svc_play_current_playlist,
         svc_pause_for_switchover,
-        svc_stop_playing
+        svc_stop_playing,
+        service_debouncer
     )
     entry.async_on_unload(cleanup_watchers)
 
