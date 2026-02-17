@@ -1,4 +1,3 @@
-import re
 import uuid
 import voluptuous as vol
 from homeassistant import config_entries
@@ -31,129 +30,8 @@ from .const import (
 )
 
 from .const import CONF_PLAYLIST_ID as CONF_ID
+from .providers import parse_playlist_input
 
-_SPOTIFY_ID_RE = re.compile(r"^[A-Za-z0-9]{22}$")
-_YTUBE_ID_RE = re.compile(r"^[A-Za-z0-9_-]{34}$")
-_LOCAL_ID_RE = re.compile(r"[0-9]{1,3}$")
-_TIDAL_ID_RE = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
-_APPLE_ID_RE = re.compile(r"^pl\.[A-Za-z0-9]{32}$")
-_DEEZER_ID_RE = re.compile(r"[0-9{7,12}]$")
-
-def _extract_spotify_id(text: str) -> str:
-    if not text:
-        return ""
-    s = text.strip()
-    if _SPOTIFY_ID_RE.fullmatch(s):
-        return s
-    m = re.search(r"(?:spotify:playlist:|open\.spotify\.com/playlist/|spotify://playlist/)([A-Za-z0-9]{22})", s, flags=re.IGNORECASE,)
-    return m.group(1) if m else ""
-
-def _extract_ytm_id(text: str) -> str:
-    if not text:
-        return ""
-    s = text.strip()
-    m = re.search(r"(?:list=|youtube:playlist:|ytmusic://playlist/)([A-Za-z0-9_-]{34})", s, flags=re.IGNORECASE,)
-    if m:
-        s = m.group(1)
-    return s if _YTUBE_ID_RE.fullmatch(s) else ""
-    
-def _extract_local_id(text: str) -> str:
-    if not text:
-        return ""
-    s = text.strip()
-    m = re.search(r"(?:media-source://mass/playlists/|library://playlist/)([0-9]{1,3})", s, flags=re.IGNORECASE,)
-    if m:
-        s = m.group(1)
-    return s if _LOCAL_ID_RE.fullmatch(s) else ""
-
-def _extract_tidal_id(text: str) -> str:
-    if not text:
-        return ""
-    s = text.strip()
-    if _TIDAL_ID_RE.fullmatch(s):
-        return s
-    m = re.search(r"(?:tidal://playlist/|(?:https?://)?(?:www\.)?tidal\.com/playlist/)([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})", s, flags=re.IGNORECASE,)
-    return m.group(1) if (m and _TIDAL_ID_RE.fullmatch(m.group(1))) else ""
-
-def _extract_apple_id(text: str) -> str:
-    if not text:
-        return ""
-    s = str(text).strip()
-    if _APPLE_ID_RE.fullmatch(s):
-        return s
-    m = re.match(r"^(?:https?://)?([^/]+)(/.*)?$", s, flags=re.IGNORECASE)
-    if not m:
-        return ""
-    host = m.group(1).lower()
-    path = (m.group(2) or "")
-    if host != "music.apple.com":
-        return ""
-    path = path.split("?", 1)[0].split("#", 1)[0]
-    last = path.rstrip("/").split("/")[-1] if path else ""
-
-    return last if _APPLE_ID_RE.fullmatch(last or "") else ""
-
-def _extract_deezer_id(text: str) -> str:
-    if not text:
-        return ""
-    s = text.strip()
-    if _DEEZER_ID_RE.fullmatch(s):
-        return s
-    m = re.search(r"(?:(?:https?://)?(?:www\.)?deezer\.com/(?:[a-zA-Z]{2,3}/)?playlist/|deezer://playlist/)([0-9]{7,12})", s, flags=re.IGNORECASE,)
-    return m.group(1) if m else ""
-
-def _extract_any_playlist_id(text: str) -> str:
-    for fn in (
-        _extract_spotify_id,
-        _extract_ytm_id,
-        _extract_local_id,
-        _extract_tidal_id,
-        _extract_apple_id,
-        _extract_deezer_id,
-    ):
-        pid = fn(text)
-        if pid:
-            return pid
-    return ""
-
-def _parse_playlist_input(text: str) -> tuple[str, str] | None:
-    if not text:
-        return None
-    s = text.strip()
-
-    if "spotify" in s or "spotify://" in s:
-        sid = _extract_spotify_id(s)
-        return ("spotify", sid) if sid else None
-    if "youtube" in s or "music.youtube.com" in s or "ytmusic://" in s or "list=" in s:
-        yid = _extract_ytm_id(s)
-        return ("youtube", yid) if yid else None
-    if "library" in s or "media-source" in s:
-        lid = _extract_local_id(s)
-        return ("local", lid) if lid else None
-    if "tidal" in s or "tidal://" in s:
-        sid = _extract_tidal_id(s)
-        return ("tidal", sid) if sid else None
-    if "apple" in s or "apple_music://" in s:
-        aid = _extract_apple_id(s)
-        return ("apple", aid) if aid else None
-    if "deezer" in s or "deezer://" in s:
-        did = _extract_deezer_id(s)
-        return ("deezer", did) if did else None
-
-    if _SPOTIFY_ID_RE.fullmatch(s):
-        return ("spotify", s)
-    if _YTUBE_ID_RE.fullmatch(s):
-        return ("youtube", s)
-    if _LOCAL_ID_RE.fullmatch(s):
-        return ("local", s)
-    if _TIDAL_ID_RE.fullmatch(s):
-        return ("tidal", s)
-    if _APPLE_ID_RE.fullmatch(s):
-        return ("apple", s)
-    if _DEEZER_ID_RE.fullmatch(s):
-        return ("deezer", s)
-
-    return None
 
 def _get_players_and_map(hass: HomeAssistant, entry: config_entries.ConfigEntry):
     opts = entry.options or {}
@@ -343,8 +221,8 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                 if name.lower() in existing_lower:
                     errors["name"] = "already_configured"
     
-            parsed = _parse_playlist_input(raw)
-            if not parsed or not parsed[1]:
+            provider_name, playlist_id = parse_playlist_input(raw)
+            if not playlist_id:
                 errors[CONF_ID] = "invalid_playlist_id"
 
             if errors:
@@ -354,10 +232,9 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                     errors=errors,
                 )
 
-            _, canonical_id = parsed
             new_map = dict(playlist_map)
             new_map[name] = {
-                "id": canonical_id,
+                "id": playlist_id,
                 CONF_PLAYLIST_RADIO_MODE: radio_mode,
             }
 
@@ -449,7 +326,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
         if user_input is not None:
             raw = str(user_input.get(CONF_ID, "")).strip()
             radio_mode = bool(user_input.get(CONF_PLAYLIST_RADIO_MODE, False))
-            editid = _extract_any_playlist_id(raw)
+            provider_name, editid = parse_playlist_input(raw)
 
             errors = {}
             if not editid:

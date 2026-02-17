@@ -5,6 +5,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 
 from .const import DEVICE_INFO, CONF_PLAYLISTS, CONF_PLAYLIST_RADIO_MODE
+from .providers import playlist_id_to_uri
 
 def _get_playlist_mapping(entry: ConfigEntry) -> dict[str, dict]:
     raw = entry.options.get(CONF_PLAYLISTS, {})
@@ -24,23 +25,6 @@ def _playlist_to_id(playlist_data) -> str:
     if isinstance(playlist_data, dict):
         return playlist_data.get("id", "")
     return str(playlist_data) if playlist_data else ""
-
-def _to_playlist_uri(stored_id: str) -> tuple[str, str]:
-    if not stored_id:
-        return ("", "")
-    if len(stored_id) == 34:
-        return ("youtube", f"ytmusic://playlist/{stored_id}")
-    if len(stored_id) == 22:
-        return ("spotify", f"spotify:playlist:{stored_id}")
-    if len(stored_id) < 4:
-        return ("local", f"library://playlist/{stored_id}")
-    if len(stored_id) == 36:
-        return ("tidal", f"tidal://playlist/{stored_id}")
-    if len(stored_id) == 35:
-        return ("apple", f"apple_music://playlist/{stored_id}")
-    if 7 <= len(stored_id) <= 12:
-        return ("deezer", f"deezer://playlist/{stored_id}")
-    return ("", "")
 
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
@@ -87,9 +71,9 @@ class AmbientMusicPlaylistSelect(SelectEntity, RestoreEntity):
         
         for name, playlist_data in self._mapping.items():
             playlist_id = _playlist_to_id(playlist_data)
-            prov, uri = _to_playlist_uri(playlist_id)
-            uri_map[name] = uri
-            provider_map[name] = prov
+            prov, uri = playlist_id_to_uri(playlist_id)
+            uri_map[name] = uri if prov else ""
+            provider_map[name] = prov if prov else ""
             radio_mode_map[name] = bool(
                 playlist_data.get(CONF_PLAYLIST_RADIO_MODE, False)
                 if isinstance(playlist_data, dict) else False
@@ -108,15 +92,14 @@ class AmbientMusicPlaylistSelect(SelectEntity, RestoreEntity):
         current_name = self._attr_current_option or ""
         current_data = self._mapping.get(current_name, {})
         current_cid = _playlist_to_id(current_data)
-        curr_prov, curr_uri = _to_playlist_uri(current_cid)
+        curr_prov, curr_uri = playlist_id_to_uri(current_cid)
         current_radio_mode = bool(
             current_data.get(CONF_PLAYLIST_RADIO_MODE, False)
             if isinstance(current_data, dict) else False
         )
 
         attrs["current_playlist_id"] = current_cid
-        attrs["current_playlist_uri"] = curr_uri
+        attrs["current_playlist_uri"] = curr_uri if curr_prov else ""
         attrs["current_playlist_radio_mode"] = current_radio_mode
 
         return attrs
-
