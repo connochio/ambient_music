@@ -9,5 +9,5 @@
   "iot_class": "local_polling",
   "issue_tracker": "https://github.com/connochio/ambient_music/issues",
   "requirements": [],
-  "version": "v1.3.0-dev-provider-method-update"
+  "version": "v1.3.0-r.0"
 }

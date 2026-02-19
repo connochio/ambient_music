@@ -8,7 +8,7 @@
 A Home Assistant integration for playing ambient music on supported players via Music Assistant.
 
 > [!IMPORTANT]
-> This integration relies on Music Assistant, and may not work correctly without it.
+> This integration relies on Music Assistant, and will not work correctly without it.
 
 > [!TIP]
 > Whilst this integration is quite new, only some providers are currently supported.  
@@ -77,8 +77,8 @@ User configurable options include:
 
 ## Setup and Documentation
 
-To get this integration fully up and running, a small amount of setup is needed.  
-Setup instructions and automation blueprints can be found within the documentation guthub page below:
+This integration is fully automatic, but needs some configuration before it is active.
+Setup and documentation can be found in the below link:
 
 [Setup and Documentation Information](https://github.com/connochio/ambient_music_documentation#readme)
 
