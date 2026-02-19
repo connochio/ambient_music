@@ -32,27 +32,40 @@
       },
       "manage_playlists": {
         "title": "Playlists",
-        "description": "Add, edit, or remove playlists."
+        "description": "Add, edit, or remove playlists.",
+        "menu_options": {
+          "choose_playlist_edit": "Edit playlist",
+          "choose_playlist_remove": "Remove playlist(s)"
+        }
       },
       "add_playlist": {
         "title": "Add playlist",
         "description": "Give the playlist a name and paste its ID or URL.",
         "data": {
           "name": "Playlist name",
-          "playlist_id": "Playlist ID or URL"
+          "playlist_id": "Playlist ID or URL",
+          "radio_mode": "Enable radio mode for this playlist?"
         }
       },
       "edit_playlist": {
-        "title": "Edit playlist",
-        "description": "Update the playlist ID or URL for this name",
+        "title": "Edit Playlist",
+        "description": "Update the playlist ID or URL for the playlist:\n\n{playlist_name}.",
         "data": {
           "name": "Playlist name",
-          "playlist_id": "Playlist ID or URL"
+          "playlist_id": "Playlist ID or URL",
+          "radio_mode": "Enable radio mode for this playlist?"
         }
       },
-      "remove_playlists": {
-        "title": "Remove playlists",
-        "description": "Choose one or more playlists to remove.",
+      "choose_playlist_edit": {
+        "title": "Edit Playlist",
+        "description": "Select the playlist to edit.",
+        "data": {
+          "playlist": "Playlist"
+        }
+      },
+      "choose_playlist_remove": {
+        "title": "Remove Playlist(s)",
+        "description": "Select one or more playlists to remove.",
         "data": {
           "playlists": "Playlists"
         }
@@ -125,9 +138,6 @@
       },
       "playlist_switch_wait_seconds": {
         "name": "Playlist Switchover Wait Time"
-      },
-      "previous_volume": {
-        "name": "Previous Volume"
       },
       "volume_fade_down_seconds": {
         "name": "Volume Fade Down Time"

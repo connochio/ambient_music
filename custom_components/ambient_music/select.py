@@ -4,30 +4,27 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 
-from .const import DEVICE_INFO, CONF_PLAYLISTS
+from .const import DEVICE_INFO, CONF_PLAYLISTS, CONF_PLAYLIST_RADIO_MODE
+from .providers import playlist_id_to_uri
 
-def _get_playlist_mapping(entry: ConfigEntry) -> dict[str, str]:
+def _get_playlist_mapping(entry: ConfigEntry) -> dict[str, dict]:
     raw = entry.options.get(CONF_PLAYLISTS, {})
     if not isinstance(raw, dict):
         return {}
-    return {str(k): str(v) for k, v in raw.items()}
+    
+    mapping = {}
+    for k, v in raw.items():
+        if isinstance(v, dict):
+            mapping[str(k)] = v
+        else:
+            mapping[str(k)] = {"id": str(v), CONF_PLAYLIST_RADIO_MODE: False}
+    
+    return mapping
 
-def _to_playlist_uri(stored_id: str) -> tuple[str, str]:
-    if not stored_id:
-        return ("", "")
-    if len(stored_id) == 34:
-        return ("youtube", f"ytmusic://playlist/{stored_id}")
-    if len(stored_id) == 22:
-        return ("spotify", f"spotify:playlist:{stored_id}")
-    if len(stored_id) < 4:
-        return ("local", f"library://playlist/{stored_id}")
-    if len(stored_id) == 36:
-        return ("tidal", f"tidal://playlist/{stored_id}")
-    if len(stored_id) == 35:
-        return ("apple", f"apple_music://playlist/{stored_id}")
-    if 7 <= len(stored_id) <= 12:
-        return ("deezer", f"deezer://playlist/{stored_id}")
-    return ("", "")
+def _playlist_to_id(playlist_data) -> str:
+    if isinstance(playlist_data, dict):
+        return playlist_data.get("id", "")
+    return str(playlist_data) if playlist_data else ""
 
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
@@ -43,7 +40,7 @@ class AmbientMusicPlaylistSelect(SelectEntity, RestoreEntity):
     _attr_translation_key = "playlists"
     _attr_unique_id = "ambient_music_playlists"
 
-    def __init__(self, options: list[str], mapping: dict[str, str]):
+    def __init__(self, options: list[str], mapping: dict[str, dict]):
         self._attr_options = options
         self._mapping = mapping
         self._attr_current_option = None
@@ -70,24 +67,39 @@ class AmbientMusicPlaylistSelect(SelectEntity, RestoreEntity):
     def extra_state_attributes(self):
         uri_map: dict[str, str] = {}
         provider_map: dict[str, str] = {}
-        for name, cid in self._mapping.items():
-            prov, uri = _to_playlist_uri(cid)
-            uri_map[name] = uri
-            provider_map[name] = prov
+        radio_mode_map: dict[str, bool] = {}
+        
+        for name, playlist_data in self._mapping.items():
+            playlist_id = _playlist_to_id(playlist_data)
+            prov, uri = playlist_id_to_uri(playlist_id)
+            uri_map[name] = uri if prov else ""
+            provider_map[name] = prov if prov else ""
+            radio_mode_map[name] = bool(
+                playlist_data.get(CONF_PLAYLIST_RADIO_MODE, False)
+                if isinstance(playlist_data, dict) else False
+            )
 
         attrs = {
-            "playlists": dict(self._mapping),
+            "playlists": {},
             "playlist_uris": uri_map,
             "playlist_providers": provider_map,
+            "playlist_radio_modes": radio_mode_map,
         }
 
+        for name, playlist_data in self._mapping.items():
+            attrs["playlists"][name] = _playlist_to_id(playlist_data)
+
         current_name = self._attr_current_option or ""
-        current_cid = self._mapping.get(current_name, "")
-        curr_prov, curr_uri = _to_playlist_uri(current_cid)
+        current_data = self._mapping.get(current_name, {})
+        current_cid = _playlist_to_id(current_data)
+        curr_prov, curr_uri = playlist_id_to_uri(current_cid)
+        current_radio_mode = bool(
+            current_data.get(CONF_PLAYLIST_RADIO_MODE, False)
+            if isinstance(current_data, dict) else False
+        )
 
         attrs["current_playlist_id"] = current_cid
-        attrs["current_playlist_uri"] = curr_uri
-        attrs["current_spotify_id"] = current_cid if curr_prov == "spotify" else ""
-        attrs["current_spotify_uri"] = curr_uri if curr_prov == "spotify" else ""
+        attrs["current_playlist_uri"] = curr_uri if curr_prov else ""
+        attrs["current_playlist_radio_mode"] = current_radio_mode
 
         return attrs

@@ -5,6 +5,7 @@ from homeassistant.components.binary_sensor import BinarySensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.event import async_track_state_change_event, async_track_time_interval
+from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers import entity_registry as er
@@ -18,7 +19,6 @@ from .const import (
 
 SELECT_ENTITY_ID = "select.ambient_music_playlists"
 MASTER_SWITCH_ENTITY_ID = "switch.ambient_music_master_enable"
-
 
 def _slugify_playlist(playlist_name: str) -> str:
     slug = playlist_name.lower()
@@ -44,6 +44,8 @@ def _to_bool(val) -> bool:
 class PlaylistEnabledSensor(BinarySensorEntity, RestoreEntity):
 
     _attr_should_poll = False
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_entity_register_visible_default = False
 
     def __init__(self, hass: HomeAssistant, playlist_name: str):
         self.hass = hass

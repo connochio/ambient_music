@@ -1,11 +1,13 @@
 import asyncio
 from typing import Iterable
+import time
 
 import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.service import async_extract_entity_ids
 from homeassistant.const import ATTR_ENTITY_ID
 from async_timeout import timeout
@@ -13,6 +15,7 @@ import logging
 _LOGGER = logging.getLogger(__name__)
 
 from .const import DOMAIN, CONF_MEDIA_PLAYERS
+from .watchers import async_setup_watchers
 
 PLATFORMS = [
     "number", 
@@ -21,14 +24,42 @@ PLATFORMS = [
     "switch"
 ]
 
+class _ServiceDebouncer:
+    def __init__(self, cooldown_seconds: float = 2.0):
+        self.cooldown_seconds = cooldown_seconds
+        self.last_trigger_time = {}
+    
+    def should_execute(self, service_name: str) -> bool:
+        current_time = time.time()
+        last_time = self.last_trigger_time.get(service_name, 0)
+        
+        if current_time - last_time >= self.cooldown_seconds:
+            self.last_trigger_time[service_name] = current_time
+            return True
+        
+        _LOGGER.debug(f"Service '{service_name}' debounced, called too recently")
+        return False
+
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     return True
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    service_debouncer = _ServiceDebouncer()
+    
     async def _options_updated(hass: HomeAssistant, updated_entry: ConfigEntry):
         await hass.config_entries.async_reload(updated_entry.entry_id)
 
     entry.async_on_unload(entry.add_update_listener(_options_updated))
+
+    async def _cleanup_orphan_entity(_now=None):
+            ent_reg = er.async_get(hass)
+            old_entity_id = "number.ambient_music_previous_volume"
+
+            if ent_reg.async_get(old_entity_id):
+                _LOGGER.warning("Removing orphaned entity registry entry: %s", old_entity_id)
+                ent_reg.async_remove(old_entity_id)
+
+    hass.bus.async_listen_once("homeassistant_started", _cleanup_orphan_entity)
 
     def _configured_players() -> list[str]:
         opts = entry.options or {}
@@ -98,7 +129,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             blocking=True,
         )
 
-    async def _play_playlist(entity_ids: Iterable[str], uri: str):
+    async def _play_playlist(entity_ids: Iterable[str], uri: str, radio_mode: bool = False):
         if not entity_ids or not uri:
             _LOGGER.warning(
                 "Ambient Music service called without any target, no media players are configured in options, or a playlist uri was not given"
@@ -113,6 +144,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     "media_type": "playlist",
                     "enqueue": "replace",
                     "media_id": uri,
+                    "radio_mode": radio_mode,
                 },
                 blocking=True,
             )
@@ -126,6 +158,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     "media_type": "playlist",
                     "enqueue": "replace",
                     "media_id": uri,
+                    "radio_mode": radio_mode,
                 },
                 blocking=True,
             )
@@ -257,6 +290,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
 
     async def svc_pause_for_switchover(call: ServiceCall):
+        if not service_debouncer.should_execute("pause_for_switchover"):
+            return
         if call.data.get("blockers_cleared", True) and not _blockers_clear():
             return
         targets = await _resolve_targets(call)
@@ -290,6 +325,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
 
     async def svc_play_current_playlist(call: ServiceCall):
+        if not service_debouncer.should_execute("play_current_playlist"):
+            return
         if call.data.get("blockers_cleared", True) and not _blockers_clear():
             return
         targets = await _resolve_targets(call)
@@ -301,6 +338,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         sel = hass.states.get("select.ambient_music_playlists")
         uri = sel and sel.attributes.get("current_playlist_uri")
+        radio_mode = sel and sel.attributes.get("current_playlist_radio_mode", False)
         if not uri:
             _LOGGER.warning(
                 "Ambient Music service called without any playlist ID"
@@ -317,11 +355,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         curve = call.data.get("curve", "logarithmic")
 
-        play_timeout = fade_up + 10.0
+        play_timeout = fade_up + 20.0
 
         async def _start_playing() -> None:
             await _volume_set(targets, 0.0)
-            await _play_playlist(targets, uri)
+            await _play_playlist(targets, uri, radio_mode=bool(radio_mode))
             await _set_repeat(targets, "all")
             await _set_shuffle(targets, True)
             await _fade_volume(targets, float(target_vol), float(fade_up), curve)
@@ -343,6 +381,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
 
     async def svc_stop_playing(call: ServiceCall):
+        if not service_debouncer.should_execute("stop_playing"):
+            return
         targets = await _resolve_targets(call)
         if not targets:
             _LOGGER.warning(
@@ -367,6 +407,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.services.async_register(DOMAIN, "stop_playing", svc_stop_playing, schema=stop_schema)
 
+    cleanup_watchers = await async_setup_watchers(
+        hass,
+        entry.entry_id,
+        svc_play_current_playlist,
+        svc_pause_for_switchover,
+        svc_stop_playing,
+        service_debouncer
+    )
+    entry.async_on_unload(cleanup_watchers)
+
     entry.async_on_unload(lambda: hass.services.async_remove(DOMAIN, "fade_volume"))
     entry.async_on_unload(lambda: hass.services.async_remove(DOMAIN, "pause_for_switchover"))
     entry.async_on_unload(lambda: hass.services.async_remove(DOMAIN, "play_current_playlist"))
@@ -374,7 +424,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
-
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)

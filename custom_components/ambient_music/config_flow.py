@@ -1,4 +1,3 @@
-import re
 import uuid
 import voluptuous as vol
 from homeassistant import config_entries
@@ -20,6 +19,7 @@ from .const import (
     CONF_MEDIA_PLAYERS,
     CONF_PLAYLISTS,
     CONF_BLOCKERS,
+    CONF_PLAYLIST_RADIO_MODE,
     BLOCKER_ID,
     BLOCKER_NAME,
     BLOCKER_TYPE,
@@ -29,152 +29,48 @@ from .const import (
     BLOCKER_TEMPLATE,
 )
 
-try:
-    from .const import CONF_PLAYLIST_ID as CONF_ID
-except ImportError:
-    from .const import CONF_SPOTIFY_ID as CONF_ID
+from .const import CONF_PLAYLIST_ID as CONF_ID
+from .providers import parse_playlist_input
 
-_SPOTIFY_ID_RE = re.compile(r"^[A-Za-z0-9]{22}$")
-_YTUBE_ID_RE = re.compile(r"^[A-Za-z0-9_-]{34}$")
-_LOCAL_ID_RE = re.compile(r"[0-9]{1,3}$")
-_TIDAL_ID_RE = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
-_APPLE_ID_RE = re.compile(r"^pl\.[A-Za-z0-9]{32}$")
-_DEEZER_ID_RE = re.compile(r"[0-9{7,12}]$")
-
-def _extract_spotify_id(text: str) -> str:
-    if not text:
-        return ""
-    s = text.strip()
-    if _SPOTIFY_ID_RE.fullmatch(s):
-        return s
-    m = re.search(r"(?:spotify:playlist:|open\.spotify\.com/playlist/|spotify://playlist/)([A-Za-z0-9]{22})", s, flags=re.IGNORECASE,)
-    return m.group(1) if m else ""
-
-def _extract_ytm_id(text: str) -> str:
-    if not text:
-        return ""
-    s = text.strip()
-    m = re.search(r"(?:list=|youtube:playlist:|ytmusic://playlist/)([A-Za-z0-9_-]{34})", s, flags=re.IGNORECASE,)
-    if m:
-        s = m.group(1)
-    return s if _YTUBE_ID_RE.fullmatch(s) else ""
-    
-def _extract_local_id(text: str) -> str:
-    if not text:
-        return ""
-    s = text.strip()
-    m = re.search(r"(?:media-source://mass/playlists/|library://playlist/)([0-9]{1,3})", s, flags=re.IGNORECASE,)
-    if m:
-        s = m.group(1)
-    return s if _LOCAL_ID_RE.fullmatch(s) else ""
-
-def _extract_tidal_id(text: str) -> str:
-    if not text:
-        return ""
-    s = text.strip()
-    if _TIDAL_ID_RE.fullmatch(s):
-        return s
-    m = re.search(r"(?:tidal://playlist/|(?:https?://)?(?:www\.)?tidal\.com/playlist/)([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})", s, flags=re.IGNORECASE,)
-    return m.group(1) if (m and _TIDAL_ID_RE.fullmatch(m.group(1))) else ""
-
-def _extract_apple_id(text: str) -> str:
-    if not text:
-        return ""
-    s = str(text).strip()
-    if _APPLE_ID_RE.fullmatch(s):
-        return s
-    m = re.match(r"^(?:https?://)?([^/]+)(/.*)?$", s, flags=re.IGNORECASE)
-    if not m:
-        return ""
-    host = m.group(1).lower()
-    path = (m.group(2) or "")
-    if host != "music.apple.com":
-        return ""
-    path = path.split("?", 1)[0].split("#", 1)[0]
-    last = path.rstrip("/").split("/")[-1] if path else ""
-
-    return last if _APPLE_ID_RE.fullmatch(last or "") else ""
-
-def _extract_deezer_id(text: str) -> str:
-    if not text:
-        return ""
-    s = text.strip()
-    if _DEEZER_ID_RE.fullmatch(s):
-        return s
-    m = re.search(r"(?:(?:https?://)?(?:www\.)?deezer\.com/(?:[a-zA-Z]{2,3}/)?playlist/|deezer://playlist/)([0-9]{7,12})", s, flags=re.IGNORECASE,)
-    return m.group(1) if m else ""
-
-def _extract_any_playlist_id(text: str) -> str:
-    for fn in (
-        _extract_spotify_id,
-        _extract_ytm_id,
-        _extract_local_id,
-        _extract_tidal_id,
-        _extract_apple_id,
-        _extract_deezer_id,
-    ):
-        pid = fn(text)
-        if pid:
-            return pid
-    return ""
-
-def _parse_playlist_input(text: str) -> tuple[str, str] | None:
-    if not text:
-        return None
-    s = text.strip()
-
-    if "spotify" in s or "spotify://" in s:
-        sid = _extract_spotify_id(s)
-        return ("spotify", sid) if sid else None
-    if "youtube" in s or "music.youtube.com" in s or "ytmusic://" in s or "list=" in s:
-        yid = _extract_ytm_id(s)
-        return ("youtube", yid) if yid else None
-    if "library" in s or "media-source" in s:
-        lid = _extract_local_id(s)
-        return ("local", lid) if lid else None
-    if "tidal" in s or "tidal://" in s:
-        sid = _extract_tidal_id(s)
-        return ("tidal", sid) if sid else None
-    if "apple" in s or "apple_music://" in s:
-        aid = _extract_apple_id(s)
-        return ("apple", aid) if aid else None
-    if "deezer" in s or "deezer://" in s:
-        did = _extract_deezer_id(s)
-        return ("deezer", did) if did else None
-
-    if _SPOTIFY_ID_RE.fullmatch(s):
-        return ("spotify", s)
-    if _YTUBE_ID_RE.fullmatch(s):
-        return ("youtube", s)
-    if _LOCAL_ID_RE.fullmatch(s):
-        return ("local", s)
-    if _TIDAL_ID_RE.fullmatch(s):
-        return ("tidal", s)
-    if _APPLE_ID_RE.fullmatch(s):
-        return ("apple", s)
-    if _DEEZER_ID_RE.fullmatch(s):
-        return ("deezer", s)
-
-    return None
 
 def _get_players_and_map(hass: HomeAssistant, entry: config_entries.ConfigEntry):
     opts = entry.options or {}
     players = list(opts.get(CONF_MEDIA_PLAYERS, []) or [])
-    playlist_map = dict(opts.get(CONF_PLAYLISTS, {}) or {})
-    playlist_map = {str(k): str(v) for k, v in playlist_map.items()}
+    raw_playlist_map = dict(opts.get(CONF_PLAYLISTS, {}) or {})
+    
+    playlist_map = {}
+    for k, v in raw_playlist_map.items():
+        if isinstance(v, dict):
+            playlist_map[str(k)] = v
+        else:
+            playlist_map[str(k)] = {"id": str(v), CONF_PLAYLIST_RADIO_MODE: False}
+    
     return players, playlist_map
+
+def _playlist_to_id(playlist_data) -> str:
+    if isinstance(playlist_data, dict):
+        return playlist_data.get("id", "")
+    return str(playlist_data) if playlist_data else ""
+
+def _playlist_to_radio_mode(playlist_data) -> bool:
+    if isinstance(playlist_data, dict):
+        return bool(playlist_data.get(CONF_PLAYLIST_RADIO_MODE, False))
+    return False
 
 def _get_blockers(entry: config_entries.ConfigEntry) -> list[dict]:
     ls = entry.options.get(CONF_BLOCKERS, [])
     return deepcopy(ls) if isinstance(ls, list) else []
 
-def _add_schema(default_name: str = "", default_sid: str = "") -> vol.Schema:
+def _add_schema(default_name: str = "", default_sid: str = "", default_radio_mode: bool = False) -> vol.Schema:
     return vol.Schema({
         vol.Required("name", default=default_name): TextSelector(
             TextSelectorConfig(multiline=False)
         ),
         vol.Required(CONF_ID, default=default_sid): TextSelector(
             TextSelectorConfig(multiline=False)
+        ),
+        vol.Required(CONF_PLAYLIST_RADIO_MODE, default=default_radio_mode): BooleanSelector(
+            BooleanSelectorConfig()
         ),
     })
 
@@ -196,13 +92,13 @@ def _edit_choice_schema(names: list[str]) -> vol.Schema:
         ),
     })
 
-def _readonly_name_and_id_schema(name: str, default_sid: str) -> vol.Schema:
+def _readonly_name_and_id_schema(name: str, default_sid: str, default_radio_mode: bool = False) -> vol.Schema:
     return vol.Schema({
-        vol.Required("playlist_name", default=name): SelectSelector(
-            SelectSelectorConfig(options=[name], multiple=False, custom_value=False)
-        ),
         vol.Required(CONF_ID, default=default_sid): TextSelector(
             TextSelectorConfig(multiline=False)
+        ),
+        vol.Required(CONF_PLAYLIST_RADIO_MODE, default=default_radio_mode): BooleanSelector(
+            BooleanSelectorConfig()
         ),
     })
 
@@ -315,6 +211,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
         if user_input is not None:
             name = str(user_input.get("name", "")).strip()
             raw = str(user_input.get(CONF_ID, "")).strip()
+            radio_mode = bool(user_input.get(CONF_PLAYLIST_RADIO_MODE, False))
 
             errors = {}
             if not name:
@@ -324,20 +221,22 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                 if name.lower() in existing_lower:
                     errors["name"] = "already_configured"
     
-            parsed = _parse_playlist_input(raw)
-            if not parsed or not parsed[1]:
+            provider_name, playlist_id = parse_playlist_input(raw)
+            if not playlist_id:
                 errors[CONF_ID] = "invalid_playlist_id"
 
             if errors:
                 return self.async_show_form(
                     step_id="add_playlist",
-                    data_schema=_add_schema(default_name=name, default_sid=raw),
+                    data_schema=_add_schema(default_name=name, default_sid=raw, default_radio_mode=radio_mode),
                     errors=errors,
                 )
 
-            _, canonical_id = parsed
             new_map = dict(playlist_map)
-            new_map[name] = canonical_id
+            new_map[name] = {
+                "id": playlist_id,
+                CONF_PLAYLIST_RADIO_MODE: radio_mode,
+            }
 
             options = {
                 CONF_MEDIA_PLAYERS: players,
@@ -359,27 +258,75 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                 errors={"base": "no_playlists"},
             )
 
+        return self.async_show_menu(
+            step_id="manage_playlists",
+            menu_options={
+                "choose_playlist_edit": "Edit Playlist",
+                "choose_playlist_remove": "Remove Playlist",
+            },
+        )
+
+    async def async_step_choose_playlist_edit(self, user_input=None):
+        _, playlist_map = _get_players_and_map(self.hass, self.config_entry)
+        names = list(playlist_map.keys())
+
         if user_input is not None:
-            action = user_input["action"]
-            chosen = user_input["playlist"]
-            if action == "Edit":
-                self._edit_target = chosen
-                return await self.async_step_edit_playlist()
-            return await self.async_step_remove_playlists()
+            self._edit_target = user_input["playlist"]
+            return await self.async_step_edit_playlist()
 
         return self.async_show_form(
-            step_id="manage_playlists",
-            data_schema=_edit_choice_schema(names),
+            step_id="choose_playlist_edit",
+            data_schema=vol.Schema({
+                vol.Required("playlist"): SelectSelector(
+                    SelectSelectorConfig(
+                        options=names,
+                        multiple=False,
+                        custom_value=False,
+                    )
+                ),
+            }),
+        )
+
+    async def async_step_choose_playlist_remove(self, user_input=None):
+        _, playlist_map = _get_players_and_map(self.hass, self.config_entry)
+        names = list(playlist_map.keys())
+
+        if user_input is not None:
+            to_remove = set(user_input.get("playlists", []))
+            new_map = {k: v for k, v in playlist_map.items() if k not in to_remove}
+            
+            players, _ = _get_players_and_map(self.hass, self.config_entry)
+            options = {
+                CONF_MEDIA_PLAYERS: list(players),
+                CONF_PLAYLISTS: new_map,
+                CONF_BLOCKERS: _get_blockers(self.config_entry),
+            }
+            return self.async_create_entry(title="", data=options)
+
+        return self.async_show_form(
+            step_id="choose_playlist_remove",
+            data_schema=vol.Schema({
+                vol.Required("playlists", default=[]): SelectSelector(
+                    SelectSelectorConfig(
+                        options=names,
+                        multiple=True,
+                        custom_value=False,
+                    )
+                ),
+            }),
         )
 
     async def async_step_edit_playlist(self, user_input=None):
         players, playlist_map = _get_players_and_map(self.hass, self.config_entry)
         old_name = self._edit_target or ""
-        old_id = playlist_map.get(old_name, "")
+        old_data = playlist_map.get(old_name, {})
+        old_id = _playlist_to_id(old_data)
+        old_radio_mode = _playlist_to_radio_mode(old_data)
 
         if user_input is not None:
             raw = str(user_input.get(CONF_ID, "")).strip()
-            editid = _extract_any_playlist_id(raw)
+            radio_mode = bool(user_input.get(CONF_PLAYLIST_RADIO_MODE, False))
+            provider_name, editid = parse_playlist_input(raw)
 
             errors = {}
             if not editid:
@@ -388,12 +335,16 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
             if errors:
                 return self.async_show_form(
                     step_id="edit_playlist",
-                    data_schema=_readonly_name_and_id_schema(old_name, raw),
+                    data_schema=_readonly_name_and_id_schema(old_name, raw, default_radio_mode=radio_mode),
+                    description_placeholders={"playlist_name": old_name},
                     errors=errors,
                 )
 
             new_map = dict(playlist_map)
-            new_map[old_name] = editid
+            new_map[old_name] = {
+                "id": editid,
+                CONF_PLAYLIST_RADIO_MODE: radio_mode,
+            }
             options = {
                 CONF_MEDIA_PLAYERS: list(players),
                 CONF_PLAYLISTS: new_map,
@@ -403,7 +354,8 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
 
         return self.async_show_form(
             step_id="edit_playlist",
-            data_schema=_readonly_name_and_id_schema(old_name, old_id),
+            data_schema=_readonly_name_and_id_schema(old_name, old_id, default_radio_mode=old_radio_mode),
+            description_placeholders={"playlist_name": old_name},
         )
 
     async def async_step_remove_playlists(self, user_input=None):
