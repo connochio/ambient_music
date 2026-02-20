@@ -63,6 +63,10 @@ def _handle_playlist_change(hass: HomeAssistant, event, pause_handler: callable,
         return
 
     if new_state.state not in ("unknown", "unavailable"):
+        if old_state and old_state.state == "unavailable":
+            _LOGGER.debug("Playlist entity recovering from unavailable state, ignoring state change")
+            return
+
         _LOGGER.debug(f"Playlist changed to {new_state.state}, triggering switchover via watcher")
         call = _WatcherServiceCall()
         
