@@ -1,5 +1,8 @@
 DOMAIN = "ambient_music"
 
+# Per-call timeout (seconds) for individual media_player.volume_set calls in the fade engine
+VOLUME_SET_CALL_TIMEOUT: float = 5.0
+
 CONF_MEDIA_PLAYERS = "media_players"
 CONF_PLAYLISTS = "playlists"
 CONF_PLAYLIST_ID = "playlist_id"

@@ -15,6 +15,7 @@ import logging
 _LOGGER = logging.getLogger(__name__)
 
 from .const import DOMAIN, CONF_MEDIA_PLAYERS
+from .fade_engine import fade_volume as _fade_volume_engine, volume_set as _volume_set_engine
 from .watchers import async_setup_watchers
 
 PLATFORMS = [
@@ -147,37 +148,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         except Exception:
             return default
 
-    def _get_state_attr_float(entity_id: str, attr: str, default: float) -> float:
-        st = hass.states.get(entity_id)
-        try:
-            return float(st.attributes.get(attr, default))
-        except Exception:
-            return default
-
-    def _resolve_volume_targets(entity_ids: Iterable[str]) -> list[str]:
-        resolved = []
-        for eid in entity_ids:
-            state = hass.states.get(eid)
-            members = state and state.attributes.get("group_members")
-            if members and isinstance(members, list):
-                resolved.extend(m for m in members if isinstance(m, str))
-            else:
-                resolved.append(eid)
-        return sorted(set(resolved))
-
-    async def _volume_set(entity_ids: Iterable[str], vol_level: float):
-        if not entity_ids:
-            return
-        resolved = _resolve_volume_targets(entity_ids)
-        if not resolved:
-            return
-        await hass.services.async_call(
-            "media_player",
-            "volume_set",
-            {"entity_id": resolved, "volume_level": float(vol_level)},
-            blocking=True,
-        )
-
     async def _pause(entity_ids: Iterable[str]):
         if not entity_ids:
             _LOGGER.warning(
@@ -236,31 +206,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             blocking=True,
         )
 
-    async def _fade_volume(entity_ids: list[str], target: float, duration: float, curve: str):
-        if not entity_ids or duration <= 0:
-            await _volume_set(entity_ids, target)
-            return
-
-        steps_per_second = 4
-        total_steps = max(int(steps_per_second * duration), 1)
-        resolved = _resolve_volume_targets(entity_ids[:1])
-        start_volume = _get_state_attr_float(resolved[0] if resolved else entity_ids[0], "volume_level", 0.0)
-        start_diff = (target - start_volume)
-
-        for idx in range(total_steps):
-            t = (idx + 1) / total_steps
-            if curve == "logarithmic":
-                factor = (t / (1 + (1 - t)))
-            elif curve == "bezier":
-                factor = (t * t * (3 - 2 * t))
-            else:
-                factor = t
-            vol_level = float(start_volume + factor * start_diff)
-            await _volume_set(entity_ids, vol_level)
-            await asyncio.sleep(0.25)
-
-        await _volume_set(entity_ids, target)
-
     def _blockers_clear() -> bool:
         st = hass.states.get("binary_sensor.ambient_music_blockers_clear")
         return bool(st and st.state == "on")
@@ -318,7 +263,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         fade_timeout = duration + 10.0
         
         async def _fade() -> None:
-            await _fade_volume(targets, target_volume, duration, curve)
+            await _fade_volume_engine(hass, targets, target_volume, duration, curve)
 
         await task_manager.run_operation(
             targets,
@@ -348,9 +293,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         switchover_timeout = fade_down + 10.0
 
-        async def _switchover() ->None:
-            await _fade_volume(targets, 0.0, fade_down, "logarithmic")
-            await _volume_set(targets, 0.0)
+        async def _switchover() -> None:
+            await _fade_volume_engine(hass, targets, 0.0, fade_down, "logarithmic")
+            await _volume_set_engine(hass, targets, 0.0)
             await _pause(targets)
 
         await task_manager.run_operation(
@@ -408,11 +353,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         play_timeout = fade_up + 20.0
 
         async def _start_playing() -> None:
-            await _volume_set(targets, 0.0)
+            # Silence first, start playback, then fade up to target volume.
+            # volume_set_engine resolves group members and skips unavailable speakers,
+            # which handles MA sync groups that lack volume control before playback starts.
+            await _volume_set_engine(hass, targets, 0.0)
             await _play_playlist(targets, uri, radio_mode=bool(radio_mode))
             await _set_repeat(targets, "all")
             await _set_shuffle(targets, True)
-            await _fade_volume(targets, float(target_vol), float(fade_up), curve)
+            await _fade_volume_engine(hass, targets, float(target_vol), float(fade_up), curve)
 
         await task_manager.run_operation(
             targets,
@@ -445,7 +393,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         stop_timeout = fade_down + 10.0
 
         async def _stop() -> None:
-            await _fade_volume(targets, 0.0, fade_down, "logarithmic")
+            await _fade_volume_engine(hass, targets, 0.0, fade_down, "logarithmic")
             await _pause(targets)
 
         await task_manager.run_operation(
