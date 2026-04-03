@@ -1,9 +1,23 @@
+"""Playlist provider definitions — ID patterns, URL extraction, and URI templates."""
+
 import re
 from dataclasses import dataclass
 from typing import Callable, Optional
 
+
 @dataclass
 class PlaylistProvider:
+    """
+    Describes one music provider's playlist ID format and how to build a playback URI.
+
+    :param name: Provider key (e.g. "spotify", "youtube").
+    :param id_pattern: Regex that matches a bare playlist ID.
+    :param url_patterns: Regexes that extract an ID from a full URL.
+    :param uri_template: Template string with ``{id}`` placeholder for the playback URI.
+    :param keywords: Strings that hint the input belongs to this provider.
+    :param extract_id: Optional custom extractor; falls back to _generic_extract.
+    """
+
     name: str
     id_pattern: re.Pattern
     url_patterns: list[str]
@@ -16,6 +30,7 @@ class PlaylistProvider:
             self.extract_id = self._generic_extract
 
     def _generic_extract(self, text: str) -> str:
+        """Try a bare ID match first, then each URL pattern; return the ID or empty string."""
         if not text:
             return ""
         s = text.strip()
@@ -98,6 +113,7 @@ PROVIDERS = {
 }
 
 def get_provider_for_id(playlist_id: str) -> Optional[PlaylistProvider]:
+    """Return the first provider whose id_pattern matches the given playlist ID."""
     if not playlist_id:
         return None
     
@@ -108,6 +124,12 @@ def get_provider_for_id(playlist_id: str) -> Optional[PlaylistProvider]:
     return None
 
 def parse_playlist_input(text: str) -> tuple[Optional[str], str]:
+    """
+    Parse user input (bare ID or URL) into a (provider_name, playlist_id) tuple.
+
+    Keyword-based matching is attempted first for speed; falls back to trying
+    every provider's extractor.  Returns (None, "") on failure.
+    """
     if not text:
         return None, ""
     
@@ -126,6 +148,7 @@ def parse_playlist_input(text: str) -> tuple[Optional[str], str]:
     return None, ""
 
 def playlist_id_to_uri(playlist_id: str) -> tuple[Optional[str], str]:
+    """Convert a bare playlist ID to a (provider_name, playback_uri) tuple."""
     if not playlist_id:
         return None, ""
     

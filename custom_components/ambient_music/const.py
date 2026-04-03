@@ -1,13 +1,16 @@
+"""Integration-wide constants for Ambient Music."""
+
 DOMAIN = "ambient_music"
 
-# Per-call timeout (seconds) for individual media_player.volume_set calls in the fade engine
-VOLUME_SET_CALL_TIMEOUT: float = 5.0
-
+# --- Config entry option keys ---
 CONF_MEDIA_PLAYERS = "media_players"
 CONF_PLAYLISTS = "playlists"
 CONF_PLAYLIST_ID = "playlist_id"
 CONF_PLAYLIST_RADIO_MODE = "radio_mode"
 CONF_BLOCKERS = "blockers"
+VOLUME_SET_CALL_TIMEOUT: float = 5.0
+  
+# --- Blocker dict keys ---
 BLOCKER_ID = "id"
 BLOCKER_NAME = "name"
 BLOCKER_TYPE = "type"
