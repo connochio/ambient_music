@@ -68,7 +68,6 @@ User configurable options include:
 
 ## Setup and Documentation
 
-This integration is fully automatic, but needs some configuration before it is active.
 Setup and documentation can be found in the below link:
 
 [Setup and Documentation Information](https://github.com/connochio/ambient_music_documentation#readme)
