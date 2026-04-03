@@ -86,6 +86,15 @@ PROVIDERS = {
         uri_template="deezer://playlist/{id}",
         keywords=["deezer"],
     ),
+    "qobuz": PlaylistProvider(
+        name="qobuz",
+        id_pattern=re.compile(r"^[0-9]{7,8}$"),
+        url_patterns=[
+            r"(?:(?:https?://)?(?:www\.)?qobuz\.com/[a-zA-Z]{2}(?:-[a-zA-Z]{2})?/playlists/[^/]+/|qobuz://playlist/)([0-9]{7,8})",
+        ],
+        uri_template="qobuz://playlist/{id}",
+        keywords=["qobuz"],
+    ),
 }
 
 def get_provider_for_id(playlist_id: str) -> Optional[PlaylistProvider]:
