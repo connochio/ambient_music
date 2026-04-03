@@ -1,3 +1,5 @@
+"""Config and options flows for Ambient Music — playlist, blocker, and media-player management."""
+
 import uuid
 import voluptuous as vol
 from homeassistant import config_entries
@@ -34,6 +36,7 @@ from .providers import parse_playlist_input
 
 
 def _get_players_and_map(hass: HomeAssistant, entry: config_entries.ConfigEntry):
+    """Return (players_list, normalised_playlist_map) from the config entry options."""
     opts = entry.options or {}
     players = list(opts.get(CONF_MEDIA_PLAYERS, []) or [])
     raw_playlist_map = dict(opts.get(CONF_PLAYLISTS, {}) or {})
@@ -48,20 +51,27 @@ def _get_players_and_map(hass: HomeAssistant, entry: config_entries.ConfigEntry)
     return players, playlist_map
 
 def _playlist_to_id(playlist_data) -> str:
+    """Extract the raw playlist ID string from either a dict or legacy scalar value."""
     if isinstance(playlist_data, dict):
         return playlist_data.get("id", "")
     return str(playlist_data) if playlist_data else ""
 
+
 def _playlist_to_radio_mode(playlist_data) -> bool:
+    """Extract the radio-mode flag from a playlist data dict."""
     if isinstance(playlist_data, dict):
         return bool(playlist_data.get(CONF_PLAYLIST_RADIO_MODE, False))
     return False
 
+
 def _get_blockers(entry: config_entries.ConfigEntry) -> list[dict]:
+    """Return a deep copy of the blocker list from the config entry options."""
     ls = entry.options.get(CONF_BLOCKERS, [])
     return deepcopy(ls) if isinstance(ls, list) else []
 
+
 def _add_schema(default_name: str = "", default_sid: str = "", default_radio_mode: bool = False) -> vol.Schema:
+    """Build the form schema for adding a new playlist."""
     return vol.Schema({
         vol.Required("name", default=default_name): TextSelector(
             TextSelectorConfig(multiline=False)
@@ -75,6 +85,7 @@ def _add_schema(default_name: str = "", default_sid: str = "", default_radio_mod
     })
 
 def _edit_choice_schema(names: list[str]) -> vol.Schema:
+    """Build the form schema for choosing a playlist to edit or remove."""
     return vol.Schema({
         vol.Required("action"): SelectSelector(
             SelectSelectorConfig(
@@ -93,6 +104,7 @@ def _edit_choice_schema(names: list[str]) -> vol.Schema:
     })
 
 def _readonly_name_and_id_schema(name: str, default_sid: str, default_radio_mode: bool = False) -> vol.Schema:
+    """Build the edit-playlist form schema (name is read-only, shown in description placeholders)."""
     return vol.Schema({
         vol.Required(CONF_ID, default=default_sid): TextSelector(
             TextSelectorConfig(multiline=False)
@@ -103,15 +115,18 @@ def _readonly_name_and_id_schema(name: str, default_sid: str, default_radio_mode
     })
 
 def _blocker_names(blockers: list[dict]) -> list[str]:
+    """Return the display names from a list of blocker dicts."""
     return [b.get(BLOCKER_NAME, "") for b in blockers if b.get(BLOCKER_NAME)]
 
 def _find_blocker(blockers: list[dict], name: str) -> dict | None:
+    """Find and return the first blocker dict matching *name*, or None."""
     for b in blockers:
         if b.get(BLOCKER_NAME, "") == name:
             return b
     return None
 
 def _blocker_type_schema(default_type: str | None = None) -> vol.Schema:
+    """Build the form schema for selecting a blocker type (state or template)."""
     return vol.Schema({
         vol.Required(BLOCKER_TYPE, default=default_type or "state"): SelectSelector(
             SelectSelectorConfig(
@@ -123,6 +138,7 @@ def _blocker_type_schema(default_type: str | None = None) -> vol.Schema:
     })
 
 def _add_blocker_state_schema(name: str = "", entity_id: str = "", state_val: str = "", invert: bool = False) -> vol.Schema:
+    """Build the form schema for adding/editing a state-based blocker."""
     return vol.Schema({
         vol.Required(BLOCKER_NAME, default=name): TextSelector(TextSelectorConfig(multiline=False)),
         vol.Required(BLOCKER_ENTITY_ID, default=entity_id): EntitySelector(
@@ -133,6 +149,7 @@ def _add_blocker_state_schema(name: str = "", entity_id: str = "", state_val: st
     })
 
 def _add_blocker_template_schema(name: str = "", template_text: str = "", invert: bool = False) -> vol.Schema:
+    """Build the form schema for adding/editing a template-based blocker."""
     return vol.Schema({
         vol.Required(BLOCKER_NAME, default=name): TextSelector(TextSelectorConfig(multiline=False)),
         vol.Required(BLOCKER_TEMPLATE, default=template_text): TextSelector(
@@ -142,6 +159,8 @@ def _add_blocker_template_schema(name: str = "", template_text: str = "", invert
     })
 
 class AmbientMusicConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+    """Single-instance config flow — creates the integration entry with no user input."""
+
     VERSION = 1
 
     async def async_step_user(self, user_input=None):
@@ -154,6 +173,7 @@ class AmbientMusicConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return OptionsFlowHandler()
 
 class OptionsFlowHandler(config_entries.OptionsFlow):
+    """Options flow — manages playlists, blockers, and media-player selection."""
 
     def __init__(self) -> None:
         self._edit_target = None

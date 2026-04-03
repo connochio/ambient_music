@@ -1,3 +1,5 @@
+"""Master enable switch for Ambient Music."""
+
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.config_entries import ConfigEntry
@@ -6,7 +8,10 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DEVICE_INFO
 
+
 class AmbientMusicEnableSwitch(SwitchEntity, RestoreEntity):
+    """Global on/off toggle that gates all Ambient Music playback."""
+
     _attr_has_entity_name = True
     _attr_translation_key = "master_enable"
     _attr_unique_id = "ambient_music_master_enable"
@@ -40,4 +45,5 @@ class AmbientMusicEnableSwitch(SwitchEntity, RestoreEntity):
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
+    """Set up the master enable switch from a config entry."""
     async_add_entities([AmbientMusicEnableSwitch(hass)], True)

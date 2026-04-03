@@ -1,10 +1,15 @@
+"""Integration-wide constants for Ambient Music."""
+
 DOMAIN = "ambient_music"
 
+# --- Config entry option keys ---
 CONF_MEDIA_PLAYERS = "media_players"
 CONF_PLAYLISTS = "playlists"
 CONF_PLAYLIST_ID = "playlist_id"
 CONF_PLAYLIST_RADIO_MODE = "radio_mode"
 CONF_BLOCKERS = "blockers"
+
+# --- Blocker dict keys ---
 BLOCKER_ID = "id"
 BLOCKER_NAME = "name"
 BLOCKER_TYPE = "type"

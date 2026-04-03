@@ -1,3 +1,5 @@
+"""Playlist selector entity — exposes the active playlist and per-playlist attributes."""
+
 from homeassistant.components.select import SelectEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -7,7 +9,9 @@ from homeassistant.helpers.restore_state import RestoreEntity
 from .const import DEVICE_INFO, CONF_PLAYLISTS, CONF_PLAYLIST_RADIO_MODE
 from .providers import playlist_id_to_uri
 
+
 def _get_playlist_mapping(entry: ConfigEntry) -> dict[str, dict]:
+    """Return a normalised {name: {id, radio_mode}} mapping from config entry options."""
     raw = entry.options.get(CONF_PLAYLISTS, {})
     if not isinstance(raw, dict):
         return {}
@@ -22,6 +26,7 @@ def _get_playlist_mapping(entry: ConfigEntry) -> dict[str, dict]:
     return mapping
 
 def _playlist_to_id(playlist_data) -> str:
+    """Extract the raw playlist ID string from either a dict or legacy scalar value."""
     if isinstance(playlist_data, dict):
         return playlist_data.get("id", "")
     return str(playlist_data) if playlist_data else ""
@@ -29,12 +34,15 @@ def _playlist_to_id(playlist_data) -> str:
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ):
+    """Set up the playlist select entity from the config entry."""
     mapping = _get_playlist_mapping(entry)
     playlists = list(mapping.keys())
     entity = AmbientMusicPlaylistSelect(playlists, mapping)
     async_add_entities([entity])
 
 class AmbientMusicPlaylistSelect(SelectEntity, RestoreEntity):
+    """Select entity whose options are the user-configured playlist names."""
+
     _attr_should_poll = False
     _attr_has_entity_name = True
     _attr_translation_key = "playlists"
@@ -65,6 +73,7 @@ class AmbientMusicPlaylistSelect(SelectEntity, RestoreEntity):
 
     @property
     def extra_state_attributes(self):
+        """Publish per-playlist URI, provider, and radio-mode maps plus current-playlist shortcuts."""
         uri_map: dict[str, str] = {}
         provider_map: dict[str, str] = {}
         radio_mode_map: dict[str, bool] = {}

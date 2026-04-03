@@ -1,10 +1,15 @@
+"""State-change watchers that trigger play/pause/stop in response to blocker or playlist changes."""
+
 import logging
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.event import async_track_state_change_event
 
 _LOGGER = logging.getLogger(__name__)
 
+
 class _WatcherServiceCall:
+    """Minimal stand-in for ServiceCall so watcher-triggered handlers get a valid call object."""
+
     def __init__(self):
         self.data = {}
 
@@ -16,6 +21,17 @@ async def async_setup_watchers(
     stop_handler: callable,
     debouncer
 ):
+    """
+    Subscribe to blocker and playlist state changes and wire them to service handlers.
+
+    :param hass: Home Assistant instance.
+    :param entry_id: Config entry ID (reserved for future per-entry scoping).
+    :param play_handler: Coroutine called when playback should start.
+    :param pause_handler: Coroutine called when playback should pause (switchover).
+    :param stop_handler: Coroutine called when playback should stop.
+    :param debouncer: Service debouncer shared with the service layer.
+    :return: Cleanup callable that removes all subscriptions.
+    """
     unsubscribe_blockers = async_track_state_change_event(
         hass,
         "binary_sensor.ambient_music_blockers_clear",
@@ -36,6 +52,7 @@ async def async_setup_watchers(
 
 @callback
 def _handle_blockers_change(hass: HomeAssistant, event, stop_handler: callable, play_handler: callable, debouncer):
+    """Stop playback when blockers activate; resume when they clear."""
     new_state = event.data.get("new_state")
     old_state = event.data.get("old_state")
 
@@ -53,6 +70,7 @@ def _handle_blockers_change(hass: HomeAssistant, event, stop_handler: callable, 
 
 @callback
 def _handle_playlist_change(hass: HomeAssistant, event, pause_handler: callable, play_handler: callable, debouncer):
+    """Fade-down then start the new playlist when the active playlist select changes."""
     new_state = event.data.get("new_state")
     old_state = event.data.get("old_state")
 
