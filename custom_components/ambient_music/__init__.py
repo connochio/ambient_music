@@ -40,11 +40,59 @@ class _ServiceDebouncer:
         _LOGGER.debug(f"Service '{service_name}' debounced, called too recently")
         return False
 
+class _OperationTaskManager:
+    
+    def __init__(self):
+        self.active_tasks: dict[str, asyncio.Task] = {}
+    
+    def cancel_for_targets(self, target_ids: list[str]) -> None:
+        for entity_id in target_ids:
+            if entity_id in self.active_tasks:
+                task = self.active_tasks[entity_id]
+                if not task.done():
+                    task.cancel()
+                del self.active_tasks[entity_id]
+    
+    async def run_operation(self, target_ids: list[str], coro, *, description: str, timeout_seconds: float) -> None:
+        self.cancel_for_targets(target_ids)
+        
+        async def _wrapped_operation():
+            try:
+                async with timeout(timeout_seconds):
+                    await coro
+            except asyncio.CancelledError:
+                _LOGGER.debug(f"Operation cancelled: {description}")
+                raise
+            except asyncio.TimeoutError:
+                _LOGGER.warning(
+                    "Timeout (%.1fs) while executing '%s' in ambient_music",
+                    timeout_seconds,
+                    description,
+                )
+            except Exception:
+                _LOGGER.exception(
+                    "Unexpected error while executing '%s' in ambient_music", description
+                )
+            finally:
+                for entity_id in target_ids:
+                    if entity_id in self.active_tasks and self.active_tasks[entity_id].done():
+                        del self.active_tasks[entity_id]
+        
+        task = asyncio.create_task(_wrapped_operation())
+        for entity_id in target_ids:
+            self.active_tasks[entity_id] = task
+        
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     return True
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     service_debouncer = _ServiceDebouncer()
+    task_manager = _OperationTaskManager()
     
     async def _options_updated(hass: HomeAssistant, updated_entry: ConfigEntry):
         await hass.config_entries.async_reload(updated_entry.entry_id)
@@ -246,33 +294,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         except Exception as err:
             _LOGGER.debug("shuffle_set failed for %s: %s", entity_ids, err)
 
-    async def _run_with_timeout(coro, *, description: str, timeout_seconds: float) -> None:
-        try:
-            async with timeout(timeout_seconds):
-                await coro
-        except asyncio.TimeoutError:
-            _LOGGER.warning(
-                "Timeout (%.1fs) while executing '%s' in ambient_music",
-                timeout_seconds,
-                description,
-            )
-        except Exception:
-            _LOGGER.exception(
-                "Unexpected error while executing '%s' in ambient_music", description
-            )
-
     async def svc_fade_volume(call: ServiceCall):
         targets = await _resolve_targets(call)
         target_volume = float(call.data["target_volume"])
         duration = float(call.data["duration"])
         curve = call.data.get("curve", "logarithmic")
 
-        fade_timeout=duration + 10.0
+        fade_timeout = duration + 10.0
         
         async def _fade() -> None:
             await _fade_volume(targets, target_volume, duration, curve)
 
-        await _run_with_timeout(
+        await task_manager.run_operation(
+            targets,
             _fade(),
             description=(
                 f"svc_fade_volume to {target_volume} over {duration}s for {targets}"
@@ -304,7 +338,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             await _volume_set(targets, 0.0)
             await _pause(targets)
 
-        await _run_with_timeout(
+        await task_manager.run_operation(
+            targets,
             _switchover(),
             description=(
                 f"svc_pause_for_switchover playlist to volume 0 over {fade_down}s for {targets}"
@@ -364,7 +399,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             await _set_shuffle(targets, True)
             await _fade_volume(targets, float(target_vol), float(fade_up), curve)
 
-        await _run_with_timeout(
+        await task_manager.run_operation(
+            targets,
             _start_playing(),
             description=(
                 f"svc_play_current_playlist (uri={uri}) to volume {target_vol} over {fade_up}s for {targets}"
@@ -397,7 +433,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             await _fade_volume(targets, 0.0, fade_down, "logarithmic")
             await _pause(targets)
 
-        await _run_with_timeout(
+        await task_manager.run_operation(
+            targets,
             _stop(),
             description=(
                 f"svc_stop_playing playlist to volume 0 over {fade_down}s for {targets}"
