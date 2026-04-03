@@ -95,6 +95,15 @@ PROVIDERS = {
         uri_template="qobuz://playlist/{id}",
         keywords=["qobuz"],
     ),
+    "yandex": PlaylistProvider(
+        name="yandex",
+        id_pattern=re.compile(r"^ar\.[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"),
+        url_patterns=[
+            r"(?:(?:https?://)?(?:www\.)?music\.yandex\.[a-z.]+/playlists/|yandexmusic://playlist/)(ar\.[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})",
+        ],
+        uri_template="yandexmusic://playlist/{id}",
+        keywords=["yandex", "music.yandex"],
+    ),
 }
 
 def get_provider_for_id(playlist_id: str) -> Optional[PlaylistProvider]:
