@@ -1,3 +1,5 @@
+"""Binary sensors — per-playlist enabled indicators and the composite blockers-clear sensor."""
+
 import re
 from datetime import timedelta
 
@@ -21,6 +23,7 @@ SELECT_ENTITY_ID = "select.ambient_music_playlists"
 MASTER_SWITCH_ENTITY_ID = "switch.ambient_music_master_enable"
 
 def _slugify_playlist(playlist_name: str) -> str:
+    """Convert a playlist display name to a lowercase alphanumeric slug."""
     slug = playlist_name.lower()
     slug = re.sub(r"\s+", "_", slug)
     slug = re.sub(r"[^a-z0-9_]", "", slug)
@@ -28,6 +31,7 @@ def _slugify_playlist(playlist_name: str) -> str:
 
 
 def _get_playlist_names(entry: ConfigEntry) -> list[str]:
+    """Return the list of playlist display names from the config entry options."""
     raw = entry.options.get(CONF_PLAYLISTS, {})
     if not isinstance(raw, dict):
         return []
@@ -35,6 +39,7 @@ def _get_playlist_names(entry: ConfigEntry) -> list[str]:
 
 
 def _to_bool(val) -> bool:
+    """Coerce common truthy string representations to bool."""
     if isinstance(val, bool):
         return val
     s = str(val).strip().lower()
@@ -42,6 +47,7 @@ def _to_bool(val) -> bool:
 
 
 class PlaylistEnabledSensor(BinarySensorEntity, RestoreEntity):
+    """Per-playlist binary sensor — ON when its playlist is the currently selected one."""
 
     _attr_should_poll = False
     _attr_entity_category = EntityCategory.DIAGNOSTIC
@@ -88,6 +94,7 @@ class PlaylistEnabledSensor(BinarySensorEntity, RestoreEntity):
 
 
 class BlockersClear(BinarySensorEntity, RestoreEntity):
+    """Composite binary sensor — ON only when the master switch and every blocker passes."""
 
     _attr_should_poll = False
     _attr_has_entity_name = True
@@ -129,6 +136,7 @@ class BlockersClear(BinarySensorEntity, RestoreEntity):
         await super().async_will_remove_from_hass()
 
     async def _refresh_blockers_and_listeners(self) -> None:
+        """Re-read blockers from options and rebuild state-change subscriptions if the entity set changed."""
         blockers = self._entry.options.get(CONF_BLOCKERS, [])
         if not isinstance(blockers, list):
             blockers = []
@@ -173,6 +181,12 @@ class BlockersClear(BinarySensorEntity, RestoreEntity):
         self._evaluate_and_maybe_write()
 
     def _eval_blocker(self, blk: dict) -> bool:
+        """
+        Evaluate a single blocker condition.
+
+        :param blk: Blocker dict with type, entity_id/template, state, and invert keys.
+        :return: True if the blocker is passing (not blocking playback).
+        """
         try:
             if blk.get(BLOCKER_TYPE) == "state":
                 ent = blk.get(BLOCKER_ENTITY_ID)
@@ -193,6 +207,7 @@ class BlockersClear(BinarySensorEntity, RestoreEntity):
 
     @callback
     def _evaluate_and_maybe_write(self) -> None:
+        """Re-evaluate all blockers and the master switch; write state only if something changed."""
         results = []
 
         ms = self.hass.states.get(MASTER_SWITCH_ENTITY_ID)
@@ -236,8 +251,10 @@ class BlockersClear(BinarySensorEntity, RestoreEntity):
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ):
+    """Create per-playlist enabled sensors and the blockers-clear sensor, pruning orphans first."""
     playlists = _get_playlist_names(entry)
 
+    # Remove orphaned playlist-enabled sensors whose playlists no longer exist in config
     ent_reg = er.async_get(hass)
     valid_slugs = {_slugify_playlist(p) for p in playlists}
     for entity_id, entity_entry in list(ent_reg.entities.items()):

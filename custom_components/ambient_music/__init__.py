@@ -1,3 +1,5 @@
+"""Ambient Music integration — service registration, fade engine, and lifecycle management."""
+
 import asyncio
 from typing import Iterable
 import time
@@ -12,6 +14,7 @@ from homeassistant.helpers.service import async_extract_entity_ids
 from homeassistant.const import ATTR_ENTITY_ID
 from async_timeout import timeout
 import logging
+
 _LOGGER = logging.getLogger(__name__)
 
 from .const import DOMAIN, CONF_MEDIA_PLAYERS
@@ -25,11 +28,14 @@ PLATFORMS = [
 ]
 
 class _ServiceDebouncer:
+    """Prevents rapid-fire duplicate service calls within a configurable cooldown window."""
+
     def __init__(self, cooldown_seconds: float = 2.0):
         self.cooldown_seconds = cooldown_seconds
         self.last_trigger_time = {}
     
     def should_execute(self, service_name: str) -> bool:
+        """Return True and record the call if the cooldown has elapsed; False otherwise."""
         current_time = time.time()
         last_time = self.last_trigger_time.get(service_name, 0)
         
@@ -41,11 +47,13 @@ class _ServiceDebouncer:
         return False
 
 class _OperationTaskManager:
-    
+    """Tracks one active asyncio.Task per media-player entity, cancelling the old task on overlap."""
+
     def __init__(self):
         self.active_tasks: dict[str, asyncio.Task] = {}
     
     def cancel_for_targets(self, target_ids: list[str]) -> None:
+        """Cancel any in-flight tasks for the given entity IDs."""
         for entity_id in target_ids:
             if entity_id in self.active_tasks:
                 task = self.active_tasks[entity_id]
@@ -54,6 +62,14 @@ class _OperationTaskManager:
                 del self.active_tasks[entity_id]
     
     async def run_operation(self, target_ids: list[str], coro, *, description: str, timeout_seconds: float) -> None:
+        """
+        Cancel any existing operation for the targets, then run a new one with a timeout.
+
+        :param target_ids: Media-player entity IDs this operation targets.
+        :param coro: Awaitable to execute.
+        :param description: Human-readable label used in log messages.
+        :param timeout_seconds: Maximum seconds before the operation is aborted.
+        """
         self.cancel_for_targets(target_ids)
         
         async def _wrapped_operation():
@@ -88,9 +104,11 @@ class _OperationTaskManager:
             pass
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    """YAML setup stub — all configuration is via config entries."""
     return True
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Set up Ambient Music from a config entry — registers services, watchers, and platforms."""
     service_debouncer = _ServiceDebouncer()
     task_manager = _OperationTaskManager()
     
@@ -110,11 +128,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.bus.async_listen_once("homeassistant_started", _cleanup_orphan_entity)
 
     def _configured_players() -> list[str]:
+        """Return the media-player entity IDs saved in the config entry options."""
         opts = entry.options or {}
         players = opts.get(CONF_MEDIA_PLAYERS, []) or []
         return list(players)
 
     async def _resolve_targets(call: ServiceCall) -> list[str]:
+        """Extract media-player entity IDs from the service call, falling back to configured players."""
         try:
             ids_from_target = await async_extract_entity_ids(call)
         except Exception:
@@ -141,6 +161,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         return ids
 
     def _get_state_float(entity_id: str, default: float) -> float:
+        """Read an entity's state as a float, returning *default* on any failure."""
         st = hass.states.get(entity_id)
         try:
             return float(st.state)
@@ -148,6 +169,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             return default
 
     def _get_state_attr_float(entity_id: str, attr: str, default: float) -> float:
+        """Read a numeric attribute from an entity's state, returning *default* on any failure."""
         st = hass.states.get(entity_id)
         try:
             return float(st.attributes.get(attr, default))
@@ -155,6 +177,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             return default
 
     def _resolve_volume_targets(entity_ids: Iterable[str]) -> list[str]:
+        """Expand grouped media players into their individual members for per-speaker volume control."""
         resolved = []
         for eid in entity_ids:
             state = hass.states.get(eid)
@@ -166,6 +189,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         return sorted(set(resolved))
 
     async def _volume_set(entity_ids: Iterable[str], vol_level: float):
+        """Set volume on the resolved (ungrouped) media players."""
         if not entity_ids:
             return
         resolved = _resolve_volume_targets(entity_ids)
@@ -179,6 +203,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         )
 
     async def _pause(entity_ids: Iterable[str]):
+        """Send a media_pause command to the given media players."""
         if not entity_ids:
             _LOGGER.warning(
                 "Ambient Music service called without any target, and/or no media players are configured in options"
@@ -192,6 +217,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         )
 
     async def _play_playlist(entity_ids: Iterable[str], uri: str, radio_mode: bool = False):
+        """Start a playlist on the targets, preferring Music Assistant services when available."""
         if not entity_ids or not uri:
             _LOGGER.warning(
                 "Ambient Music service called without any target, no media players are configured in options, or a playlist uri was not given"
@@ -237,6 +263,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         )
 
     async def _fade_volume(entity_ids: list[str], target: float, duration: float, curve: str):
+        """
+        Gradually adjust volume from the current level to *target* over *duration* seconds.
+
+        :param entity_ids: Media-player entity IDs to fade.
+        :param target: Desired end volume (0.0–1.0).
+        :param duration: Fade duration in seconds; 0 means jump immediately.
+        :param curve: Easing curve — "logarithmic", "bezier", or "linear".
+        """
         if not entity_ids or duration <= 0:
             await _volume_set(entity_ids, target)
             return
@@ -262,6 +296,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         await _volume_set(entity_ids, target)
 
     def _blockers_clear() -> bool:
+        """Return True if the blockers-clear binary sensor reports ON."""
         st = hass.states.get("binary_sensor.ambient_music_blockers_clear")
         return bool(st and st.state == "on")
 
@@ -275,6 +310,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
 
     async def _set_repeat(entity_ids: Iterable[str], mode: str):
+        """Set repeat mode on the targets, failing gracefully if the service is unavailable."""
         if not entity_ids:
             _LOGGER.warning(
                 "Ambient Music service called without any target, and/or no media players are configured in options"
@@ -294,6 +330,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             _LOGGER.debug("media_player.repeat_set service not available; skipping")
 
     async def _set_shuffle(entity_ids: Iterable[str], shuffle: bool = True):
+        """Enable or disable shuffle on the targets, failing gracefully on error."""
         if not entity_ids:
             _LOGGER.warning(
                 "Ambient Music service called without any target, and/or no media players are configured in options"
@@ -310,6 +347,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             _LOGGER.debug("shuffle_set failed for %s: %s", entity_ids, err)
 
     async def svc_fade_volume(call: ServiceCall):
+        """Service handler: fade target players to a specified volume over a given duration."""
         targets = await _resolve_targets(call)
         target_volume = float(call.data["target_volume"])
         duration = float(call.data["duration"])
@@ -339,6 +377,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
 
     async def svc_pause_for_switchover(call: ServiceCall):
+        """Service handler: fade down to silence and pause — used during playlist switchovers."""
         if not service_debouncer.should_execute("pause_for_switchover"):
             return
         if call.data.get("blockers_cleared", True) and not _blockers_clear():
@@ -375,6 +414,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
 
     async def svc_play_current_playlist(call: ServiceCall):
+        """Service handler: start the currently selected playlist, fading up to the target volume."""
         if not service_debouncer.should_execute("play_current_playlist"):
             return
         if call.data.get("blockers_cleared", True) and not _blockers_clear():
@@ -432,6 +472,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
 
     async def svc_stop_playing(call: ServiceCall):
+        """Service handler: fade down to silence and pause playback."""
         if not service_debouncer.should_execute("stop_playing"):
             return
         targets = await _resolve_targets(call)
@@ -478,4 +519,5 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return True
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Unload all platforms for this config entry."""
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
