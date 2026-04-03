@@ -154,13 +154,27 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         except Exception:
             return default
 
+    def _resolve_volume_targets(entity_ids: Iterable[str]) -> list[str]:
+        resolved = []
+        for eid in entity_ids:
+            state = hass.states.get(eid)
+            members = state and state.attributes.get("group_members")
+            if members and isinstance(members, list):
+                resolved.extend(m for m in members if isinstance(m, str))
+            else:
+                resolved.append(eid)
+        return sorted(set(resolved))
+
     async def _volume_set(entity_ids: Iterable[str], vol_level: float):
         if not entity_ids:
+            return
+        resolved = _resolve_volume_targets(entity_ids)
+        if not resolved:
             return
         await hass.services.async_call(
             "media_player",
             "volume_set",
-            {"entity_id": list(entity_ids), "volume_level": float(vol_level)},
+            {"entity_id": resolved, "volume_level": float(vol_level)},
             blocking=True,
         )
 
@@ -229,7 +243,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         steps_per_second = 4
         total_steps = max(int(steps_per_second * duration), 1)
-        start_volume = _get_state_attr_float(entity_ids[0], "volume_level", 0.0)
+        resolved = _resolve_volume_targets(entity_ids[:1])
+        start_volume = _get_state_attr_float(resolved[0] if resolved else entity_ids[0], "volume_level", 0.0)
         start_diff = (target - start_volume)
 
         for idx in range(total_steps):
