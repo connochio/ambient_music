@@ -8,7 +8,8 @@ CONF_PLAYLISTS = "playlists"
 CONF_PLAYLIST_ID = "playlist_id"
 CONF_PLAYLIST_RADIO_MODE = "radio_mode"
 CONF_BLOCKERS = "blockers"
-
+VOLUME_SET_CALL_TIMEOUT: float = 5.0
+  
 # --- Blocker dict keys ---
 BLOCKER_ID = "id"
 BLOCKER_NAME = "name"
