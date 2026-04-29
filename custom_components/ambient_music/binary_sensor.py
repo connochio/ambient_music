@@ -6,6 +6,7 @@ from datetime import timedelta
 from homeassistant.components.binary_sensor import BinarySensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.event import async_track_state_change_event, async_track_time_interval
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -14,7 +15,7 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.template import Template
 
 from .const import (
-    CONF_PLAYLISTS, DEVICE_INFO,
+    CONF_PLAYLISTS, DEVICE_INFO, DOMAIN,
     CONF_BLOCKERS, BLOCKER_NAME, BLOCKER_TYPE, BLOCKER_INVERT,
     BLOCKER_ENTITY_ID, BLOCKER_STATE, BLOCKER_TEMPLATE
 )
@@ -59,6 +60,7 @@ class PlaylistEnabledSensor(BinarySensorEntity, RestoreEntity):
         self._attr_name = f"Ambient Music {playlist_name} Enabled"
         self._attr_unique_id = f"ambient_music_{_slugify_playlist(playlist_name)}_enabled"
         self._attr_is_on = None
+        self._unsub_state_change = None
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
@@ -67,9 +69,17 @@ class PlaylistEnabledSensor(BinarySensorEntity, RestoreEntity):
         if last and last.state in ("on", "off"):
             self._attr_is_on = (last.state == "on")
 
-        async_track_state_change_event(self.hass, SELECT_ENTITY_ID, self._handle_select_change)
+        self._unsub_state_change = async_track_state_change_event(
+            self.hass, SELECT_ENTITY_ID, self._handle_select_change
+        )
 
         self._evaluate_and_maybe_write()
+
+    async def async_will_remove_from_hass(self) -> None:
+        if self._unsub_state_change is not None:
+            self._unsub_state_change()
+            self._unsub_state_change = None
+        await super().async_will_remove_from_hass()
 
     @callback
     def _handle_select_change(self, _event) -> None:
@@ -110,6 +120,7 @@ class BlockersClear(BinarySensorEntity, RestoreEntity):
         self._interval_added = False
         self._attr_is_on = None
         self._attr_extra_state_attributes = None
+        self._unsub_options_updated = None
 
     @property
     def device_info(self):
@@ -128,12 +139,26 @@ class BlockersClear(BinarySensorEntity, RestoreEntity):
         await self._refresh_blockers_and_listeners()
         self._evaluate_and_maybe_write()
 
+        self._unsub_options_updated = async_dispatcher_connect(
+            self.hass,
+            f"{DOMAIN}_options_updated_{self._entry.entry_id}",
+            self._handle_options_update,
+        )
+
     async def async_will_remove_from_hass(self) -> None:
+        if self._unsub_options_updated is not None:
+            self._unsub_options_updated()
+            self._unsub_options_updated = None
         for u in self._unsubs:
             u()
         self._unsubs.clear()
         self._listened_entities.clear()
         await super().async_will_remove_from_hass()
+
+    @callback
+    def _handle_options_update(self) -> None:
+        """Re-read blockers from the config entry and rebuild listeners + state in place."""
+        self.hass.async_create_task(self._async_refresh_and_eval())
 
     async def _refresh_blockers_and_listeners(self) -> None:
         """Re-read blockers from options and rebuild state-change subscriptions if the entity set changed."""
@@ -270,3 +295,36 @@ async def async_setup_entry(
     sensors = [PlaylistEnabledSensor(hass, name) for name in playlists]
     sensors.append(BlockersClear(hass, entry))
     async_add_entities(sensors, True)
+
+    tracked_playlist_names: set[str] = set(playlists)
+
+    @callback
+    def _handle_playlist_set_change() -> None:
+        """Add new per-playlist sensors and remove orphans in response to options changes."""
+        current_names = set(_get_playlist_names(entry))
+
+        to_add = current_names - tracked_playlist_names
+        to_remove = tracked_playlist_names - current_names
+
+        if to_add:
+            new_sensors = [PlaylistEnabledSensor(hass, name) for name in to_add]
+            async_add_entities(new_sensors, True)
+            tracked_playlist_names.update(to_add)
+
+        if to_remove:
+            current_ent_reg = er.async_get(hass)
+            for name in to_remove:
+                unique_id = f"ambient_music_{_slugify_playlist(name)}_enabled"
+                entity_id = current_ent_reg.async_get_entity_id(
+                    "binary_sensor", DOMAIN, unique_id
+                )
+                if entity_id:
+                    current_ent_reg.async_remove(entity_id)
+            tracked_playlist_names.difference_update(to_remove)
+
+    unsub = async_dispatcher_connect(
+        hass,
+        f"{DOMAIN}_options_updated_{entry.entry_id}",
+        _handle_playlist_set_change,
+    )
+    entry.async_on_unload(unsub)
