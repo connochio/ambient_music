@@ -2,11 +2,12 @@
 
 from homeassistant.components.select import SelectEntity
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 
-from .const import DEVICE_INFO, CONF_PLAYLISTS, CONF_PLAYLIST_RADIO_MODE
+from .const import DEVICE_INFO, DOMAIN, CONF_PLAYLISTS, CONF_PLAYLIST_RADIO_MODE
 from .providers import playlist_id_to_uri
 
 
@@ -37,7 +38,7 @@ async def async_setup_entry(
     """Set up the playlist select entity from the config entry."""
     mapping = _get_playlist_mapping(entry)
     playlists = list(mapping.keys())
-    entity = AmbientMusicPlaylistSelect(playlists, mapping)
+    entity = AmbientMusicPlaylistSelect(entry, playlists, mapping)
     async_add_entities([entity])
 
 class AmbientMusicPlaylistSelect(SelectEntity, RestoreEntity):
@@ -48,16 +49,41 @@ class AmbientMusicPlaylistSelect(SelectEntity, RestoreEntity):
     _attr_translation_key = "playlists"
     _attr_unique_id = "ambient_music_playlists"
 
-    def __init__(self, options: list[str], mapping: dict[str, dict]):
+    def __init__(self, entry: ConfigEntry, options: list[str], mapping: dict[str, dict]):
+        self._entry = entry
         self._attr_options = options
         self._mapping = mapping
         self._attr_current_option = None
+        self._unsub_options_updated = None
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
         last = await self.async_get_last_state()
         if last and last.state in (self._attr_options or []):
             self._attr_current_option = last.state
+
+        self._unsub_options_updated = async_dispatcher_connect(
+            self.hass,
+            f"{DOMAIN}_options_updated_{self._entry.entry_id}",
+            self._handle_options_update,
+        )
+
+    async def async_will_remove_from_hass(self) -> None:
+        if self._unsub_options_updated is not None:
+            self._unsub_options_updated()
+            self._unsub_options_updated = None
+        await super().async_will_remove_from_hass()
+
+    @callback
+    def _handle_options_update(self) -> None:
+        """Refresh playlist options and per-playlist attribute maps in place from the config entry."""
+        new_mapping = _get_playlist_mapping(self._entry)
+        new_options = list(new_mapping.keys())
+        self._mapping = new_mapping
+        self._attr_options = new_options
+        if self._attr_current_option not in new_options:
+            self._attr_current_option = None
+        self.async_write_ha_state()
 
     async def async_select_option(self, option: str) -> None:
         if option not in self._attr_options:

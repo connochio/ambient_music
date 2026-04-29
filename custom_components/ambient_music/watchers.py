@@ -1,7 +1,7 @@
 """State-change watchers that trigger play/pause/stop in response to blocker or playlist changes."""
 
 import logging
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import CoreState, HomeAssistant, callback
 from homeassistant.helpers.event import async_track_state_change_event
 
 _LOGGER = logging.getLogger(__name__)
@@ -53,10 +53,25 @@ async def async_setup_watchers(
 @callback
 def _handle_blockers_change(hass: HomeAssistant, event, stop_handler: callable, play_handler: callable, debouncer):
     """Stop playback when blockers activate; resume when they clear."""
+    if hass.state is not CoreState.running:
+        _LOGGER.debug(
+            "Blockers watcher: HA not yet running (state=%s); ignoring event",
+            hass.state,
+        )
+        return
+
     new_state = event.data.get("new_state")
     old_state = event.data.get("old_state")
 
     if not new_state or not old_state:
+        return
+
+    if old_state.state in ("unknown", "unavailable") or new_state.state in ("unknown", "unavailable"):
+        _LOGGER.debug(
+            "Blockers watcher: ignoring transition %s -> %s (initial-populate, not a real change)",
+            old_state.state,
+            new_state.state,
+        )
         return
 
     if old_state.state == "on" and new_state.state == "off":
@@ -71,10 +86,24 @@ def _handle_blockers_change(hass: HomeAssistant, event, stop_handler: callable, 
 @callback
 def _handle_playlist_change(hass: HomeAssistant, event, pause_handler: callable, play_handler: callable, debouncer):
     """Fade-down then start the new playlist when the active playlist select changes."""
+    if hass.state is not CoreState.running:
+        _LOGGER.debug(
+            "Playlist watcher: HA not yet running (state=%s); ignoring event",
+            hass.state,
+        )
+        return
+
     new_state = event.data.get("new_state")
     old_state = event.data.get("old_state")
 
     if not new_state:
+        return
+
+    if old_state and old_state.state in ("unknown", "unavailable"):
+        _LOGGER.debug(
+            "Playlist watcher: ignoring transition out of %s — initial state populate, not a user-driven change",
+            old_state.state,
+        )
         return
 
     if old_state and new_state.state == old_state.state:

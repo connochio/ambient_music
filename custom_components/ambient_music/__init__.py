@@ -10,6 +10,7 @@ from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.service import async_extract_entity_ids
 from homeassistant.const import ATTR_ENTITY_ID
 from async_timeout import timeout
@@ -114,7 +115,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     task_manager = _OperationTaskManager()
     
     async def _options_updated(hass: HomeAssistant, updated_entry: ConfigEntry):
-        await hass.config_entries.async_reload(updated_entry.entry_id)
+        async_dispatcher_send(
+            hass,
+            f"{DOMAIN}_options_updated_{updated_entry.entry_id}",
+        )
 
     entry.async_on_unload(entry.add_update_listener(_options_updated))
 
